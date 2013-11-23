@@ -2,7 +2,6 @@
 import json
 import io
 import random
-import order
 try:
     # Python2
     from Tkinter import *
@@ -470,7 +469,7 @@ class CustomerInfoContent(Frame):
         return set_values
 
 # 订单提交对话框
-class ComfirmOrderDialog(Toplevel):
+class ConfirmOrderDialog(Toplevel):
     def __init__(self, parent, prompt_text = '', train_info=None, passenger_info=None, okFunc=None):
         Toplevel.__init__(self, parent)
         self.transient(parent)
@@ -613,7 +612,7 @@ def main():
     comfirmFrame = ConfirmPassengerFrame(contacts=jsonData['passengerJson'], rand_image_url=rand_image_url,
         train_info=parser.get_train_info(), seats_info=parser.get_current_seats(),
         seats_types=parser.get_seats_types(), ticket_types=parser.get_ticket_types(), card_types=parser.get_card_types())
-    comfirmFrame.submitButton.configure(command=lambda: ComfirmOrderDialog(comfirmFrame.root, '提交订单确认', parser.get_train_info(), comfirmFrame.getPassengerInfo()))
+    comfirmFrame.submitButton.configure(command=lambda: ConfirmOrderDialog(comfirmFrame.root, '提交订单确认', parser.get_train_info(), comfirmFrame.getPassengerInfo()))
     comfirmFrame.show()
 
 if __name__ == '__main__':

@@ -1,15 +1,9 @@
+# coding: utf8
 import io
 import random
-import urllib
 from PIL import Image, ImageTk
-try:
-    # Python2
-    import Tkinter as tk
-    from urllib2 import urlopen
-except ImportError:
-    # Python3
-    import tkinter as tk
-    from urllib.request import urlopen
+import tkinter as tk
+from urllib.request import urlopen
 
 # 将网络中获取的验证码图片使用弹窗显示
 class LoginFrame:

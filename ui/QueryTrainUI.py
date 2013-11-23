@@ -1,4 +1,4 @@
-# encoding=utf8
+# coding: utf8
 import random
 try:
     # Python2

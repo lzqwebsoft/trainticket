@@ -1,19 +1,9 @@
 # coding: utf8
 import time
-import query
-import login
-import order
-from QueryTrainUI import QueryTrainFrame
-from OrderComfirmUI import ConfirmPassengerFrame
-from OrderComfirmUI import ComfirmOrderDialog
+from ui import *
+from core import *
 from common.httpaccess import HttpTester
-from common.showimage import ShowRandImage
-try:
-    # Python2
-    from Tkinter import *
-except ImportError:
-    # Python3
-    from tkinter import *
+from tkinter import *
 
 class AccessTrainOrderNetWork:
     def __init__(self):
@@ -37,7 +27,7 @@ class AccessTrainOrderNetWork:
         if self.userInfo:
             randImageUrl = login.getRandImageUrl(self.ht)
             if randImageUrl:
-                self.randImage = ShowRandImage(randImageUrl)
+                self.randImage = LoginUI.LoginFrame(randImageUrl)
                 self.randImage.loginButton.configure(command=self.processLoginCallBack)
                 self.randImage.randCode.bind("<Return>", self.processLoginCallBack)
                 self.randImage.show()
@@ -54,7 +44,7 @@ class AccessTrainOrderNetWork:
                     # 更新城市编码表
                     query.updateCityCode(self.ht)
                     # 启动列车查询窗体
-                    self.queryFrame = QueryTrainFrame()
+                    self.queryFrame = QueryTrainUI.QueryTrainFrame()
                     self.queryFrame.selectButton.configure(command=self.queryTrainsCallBack)
                     self.queryFrame.show()
                 else:
@@ -119,7 +109,7 @@ class AccessTrainOrderNetWork:
                 if len(seats_types) > 0 and len(ticket_types) > 0 and len(card_types) > 0:
                     self.queryFrame.quit()      # 注销查询窗体
                     self.queryFrame = None
-                    self.comfirmFrame = ConfirmPassengerFrame(contacts=contacts, rand_image_url=img_rand_code_url,
+                    self.comfirmFrame = OrderConfirm.ConfirmPassengerFrame(contacts=contacts, rand_image_url=img_rand_code_url,
                                     train_info=trainInfo, seats_info=seats_info,
                                     seats_types=seats_types, ticket_types=ticket_types,
                                     card_types=card_types)
@@ -141,7 +131,7 @@ class AccessTrainOrderNetWork:
         self.comfirmFrame.quit()
         self.comfirmFrame = None
         # 新建查询窗体
-        self.queryFrame = QueryTrainFrame()
+        self.queryFrame = QueryTrainUI.QueryTrainFrame()
         self.queryFrame.selectButton.configure(command=self.queryTrainsCallBack)
         self.queryFrame.show()
 
@@ -185,7 +175,7 @@ class AccessTrainOrderNetWork:
                     ('to', hidden_params['orderRequest.to_station_telecode']),
                     ('ticket', hidden_params['leftTicketStr'])]
             queue_note = order.getQueueCount(self.ht, queueCounParams, seat_type)
-            ComfirmOrderDialog(self.comfirmFrame.root, queue_note, self.parser.get_train_info(), self.comfirmFrame.getPassengerInfo(), self.comfirmOrderSubmitCallBack)
+            OrderConfirm.ConfirmOrderDialog(self.comfirmFrame.root, queue_note, self.parser.get_train_info(), self.comfirmFrame.getPassengerInfo(), self.comfirmOrderSubmitCallBack)
 
     # 用户点击提交订单确认对话框的确认按钮时回调
     def comfirmOrderSubmitCallBack(self):
