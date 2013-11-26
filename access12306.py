@@ -109,7 +109,7 @@ class AccessTrainOrderNetWork:
                 if len(seats_types) > 0 and len(ticket_types) > 0 and len(card_types) > 0:
                     self.queryFrame.quit()      # 注销查询窗体
                     self.queryFrame = None
-                    self.comfirmFrame = OrderConfirm.ConfirmPassengerFrame(contacts=contacts, rand_image_url=img_rand_code_url,
+                    self.comfirmFrame = OrderConfirmUI.ConfirmPassengerFrame(contacts=contacts, rand_image_url=img_rand_code_url,
                                     train_info=trainInfo, seats_info=seats_info,
                                     seats_types=seats_types, ticket_types=ticket_types,
                                     card_types=card_types)
@@ -175,7 +175,7 @@ class AccessTrainOrderNetWork:
                     ('to', hidden_params['orderRequest.to_station_telecode']),
                     ('ticket', hidden_params['leftTicketStr'])]
             queue_note = order.getQueueCount(self.ht, queueCounParams, seat_type)
-            OrderConfirm.ConfirmOrderDialog(self.comfirmFrame.root, queue_note, self.parser.get_train_info(), self.comfirmFrame.getPassengerInfo(), self.comfirmOrderSubmitCallBack)
+            OrderConfirmUI.ConfirmOrderDialog(self.comfirmFrame.root, queue_note, self.parser.get_train_info(), self.comfirmFrame.getPassengerInfo(), self.comfirmOrderSubmitCallBack)
 
     # 用户点击提交订单确认对话框的确认按钮时回调
     def comfirmOrderSubmitCallBack(self):
