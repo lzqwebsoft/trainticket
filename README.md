@@ -5,11 +5,10 @@ Which uses python 3.3.2 to development, so if you want development by youself, y
 
 * First, Click [HERE](http://www.python.org/getit) to download python 3.3.2 and install it.
 
-* Second, Download and install the related expansion pack: [Python Imaging Library(PLI)](http://www.lfd.uci.edu/~gohlke/pythonlibs/#pil).It is used to generate captcha image in the Tk.
+* Second, Download and install the related expansion pack: [Python Imaging Library(PLI)](http://www.lfd.uci.edu/~gohlke/pythonlibs/#pil).It is used to generate captcha image in the Tk. <font color='red'>Note: In python3 Pillow is a replacement for PIL.</font>
 
 * Last, Optionally. If you want to run it without requiring a Python installation. Maybe you can install [cx_Freeze](http://cx-freeze.sourceforge.net/) for freezing Python scripts into executable Windows programs. Well you can use the command as given below for converts:
 ```shell
 $ python setup.py build
 ```
 
-------
