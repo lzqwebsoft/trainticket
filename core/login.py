@@ -120,7 +120,7 @@ def login(ht, username, password, randcode):
 
         # loginRand = 0
         # 检查用户是否可以登录
-        if (json_data["data"]["loginCheck"] != 'Y'):
+        if (type(json_data) == dict and "data" in json_data and type(json_data["data"]) == dict and json_data["data"]["loginCheck"] != 'Y'):
             print(json_str)
             print(json_data["messages"])
             print("当前网络繁忙不可访问!")
