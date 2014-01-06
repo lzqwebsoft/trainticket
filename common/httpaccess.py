@@ -21,7 +21,7 @@ class HttpTester:
         self.__opener.addheaders = [('User-Agent', 'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; WOW64; Trident/6.0)'),
                                     ('Connection', 'keep-alive'),
                                     ('Cache-Control', 'no-cache'),
-                                    ('Host', 'dynamic.12306.cn'),
+                                    ('Host', 'kyfw.12306.cn'),
                                     ('Accept-Language:', 'zh-cn,zh;q=0.8,en-us;q=0.5,en;q=0.3'),
                                     ('Accept-Encoding', 'gzip, deflate'),
                                     ('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8')]

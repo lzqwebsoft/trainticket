@@ -27,6 +27,7 @@ class AccessTrainOrderNetWork:
         if self.userInfo:
             randImageUrl = login.getRandImageUrl(self.ht)
             if randImageUrl:
+                print(randImageUrl)
                 self.randImage = LoginUI.LoginFrame(randImageUrl)
                 self.randImage.loginButton.configure(command=self.processLoginCallBack)
                 self.randImage.randCode.bind("<Return>", self.processLoginCallBack)

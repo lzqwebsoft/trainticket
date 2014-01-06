@@ -11,9 +11,9 @@ except ImportError:
 
 # 更新城市编码列表数据
 def updateCityCode(ht):
-    allStationsJsStr = ht.get(url="https://dynamic.12306.cn/otsweb/js/common/station_name.js")
+    allStationsJsStr = ht.get(url="https://kyfw.12306.cn/otn/resources/merged/station_name_js.js")
     hasStationsRe = re.compile(r'var station_names', re.DOTALL)
-    collectStationsRe = re.compile(r"\'(.+?)\'", re.DOTALL)
+    collectStationsRe = re.compile(r'"(.+?)"', re.DOTALL)
     if allStationsJsStr.strip()!="" and hasStationsRe.search(allStationsJsStr):
         collects = collectStationsRe.findall(allStationsJsStr)
         allStationsStr = collects[0]
@@ -139,9 +139,15 @@ def queryTrains(ht, from_station, to_station, train_date = None, start_time = "0
                     ("includeStudent", "00"),
                     ("seatTypeAndNum", ""),
                     ("orderRequest.start_time_str", start_time)]
+    """
+    leftTicketDTO.from_station=SHH
+    leftTicketDTO.to_station=WHN
+    leftTicketDTO.train_date=2014-01-25
+    purpose_codes=ADULT
+    """
     #logQuery(ht, selectParams)
     selectParams = [('method','queryLeftTicket')] + selectParams
-    queryResult = ht.get(url="https://dynamic.12306.cn/otsweb/order/querySingleAction.do", params=selectParams)
+    queryResult = ht.get(url="https://kyfw.12306.cn/otn/leftTicket/query", params=selectParams)
     if queryResult == "-10":
         print("您还没有登录或者离开页面的时间过长，请登录系统或者刷新页面")
     elif queryResult == "-1":
