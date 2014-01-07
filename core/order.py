@@ -1,8 +1,11 @@
 # coding: utf8
 import json
 import re
+import time
+import urllib.parse
 from common.httpaccess import HttpTester
 from threading import Timer
+
 try:
     # Python2
     from HTMLParser import HTMLParser
@@ -12,164 +15,75 @@ except ImportError:
     from html.parser import HTMLParser
     # from tkinter import messagebox
 
+ticket_submit_order = {'ticket_type': {'adult': "1", 'child': "2", 'student': "3", 'disability': "4"},
+                       'ticket_type_name': {"1": "成人票", "2": "孩票", "3": "学生票", "4": "伤残军人票"},
+                       'tour_flag': {'dc': "dc", 'wc': "wc", 'fc': "fc", 'gc': "gc", 'lc1': "l1", 'lc2': "l2"},
+                       'passenger_type': {'adult': "1", 'child': "2", 'student': "3", 'disability': "4"},
+                       'passenger_card_type': {'two': "1", 'one': "2", 'tmp': "3", 'passport': "B",
+                                               'hongkong_macau': "C",
+                                               'taiwan': "G"}, 'request_flag': {'isAsync': "1"},
+                       'ticket_query_flag': {'query_commom': "00", 'query_student': "0X00"},
+                       'seatType': {'yz_type': "1"},
+                       'special_areas': {'lso': "LSO", 'dao': "DAO", 'ado': "ADO", 'nqo': "NQO", 'tho': "THO"}}
+
 # 用于解析车票预订HTML的解析类
 class ParserConfirmPassengerInitPage(HTMLParser):
-    def __init__(self):
+    def __init__(self, orderInitHtml=''):
         HTMLParser.__init__(self)
-        self.train_info = []           # 列车信息
-        self.current_seats = []        # 当前可用席别
-        self.train_info_table_flag = False
-        self.tr_flag = False
-        self.seats_td_flag = False
-        self.train_info_td_flag = False
+        self.orderInitHtml = orderInitHtml
 
+        self.train_info = []                       # 当前列车信息
+        self.order_request_params = {}
+        self.current_seats = {}                    # 席别信息
+        self.img_rand_code_url = ''                # 图片验证码URL
+        self.ticketInfoForPassengerForm = {}  # 初始化当前页面参数
 
-        self.form_flag = False
-        self.confirm_passenger_params = {}   # 隐藏hidden
+        train_info_re = re.compile(r'var ticketInfoForPassengerForm=(\{.+\})?;')
+        if orderInitHtml and train_info_re.search(orderInitHtml):
+            collects = train_info_re.findall(orderInitHtml)
+            train_info_str = collects[0]
+            if train_info_str:
+                self.ticketInfoForPassengerForm = json.loads(train_info_str.replace("'", '"'))
 
-        self.seats_types = {}                # 席别
-        self.current_handle_value = ''
-        self.seats_types_flag = False
-        self.seats_types_option_flag = False
+        order_request_re = re.compile(r'var orderRequestDTO=(\{.+\})?;')
+        if orderInitHtml and order_request_re.search(orderInitHtml):
+            collects = order_request_re.findall(orderInitHtml)
+            order_request_str = collects[0]
+            if order_request_str:
+                self.order_request_params = json.loads(train_info_str.replace("'", '"'))
 
-        self.ticket_types = {}               # 票种
-        self.ticket_types_flag = False
-        self.ticket_types_option_flag = False
+        self.train_info_flag = False
 
-        self.card_types = {}                 # 证件类型
-        self.card_types_flag = False
-        self.card_types_option_flag = False
-
-        # 图片验证码URL
-        self.img_rand_code_url = ''
-
-        # 错误信息
-        self.error_message = ''
-        self.error_message_flag = False
 
     def handle_starttag(self, tag, attrs):
-        # 所有form中hidden标签值
-        if tag=='form' and ('name', 'save_passenger_single') in attrs and ('id', 'confirmPassenger') in attrs:
-            self.form_flag = True
-        if self.form_flag and tag == 'input' and ('type', 'hidden') in attrs:
-            attrs = dict(attrs)
-            if 'name' in attrs:
-                self.confirm_passenger_params[attrs['name']] = ('value' in attrs and [attrs['value']] or [''])[0]
-
-        # 席别的Value
-        if self.form_flag and tag == 'select' and  ("name", "passenger_1_seat") in attrs and ('id', "passenger_1_seat") in attrs:
-            self.seats_types_flag = True
-        if self.seats_types_flag and tag == 'option':
-            attrs = dict(attrs)
-            if 'value' in attrs:
-                self.seats_types[attrs['value']]=''
-                self.handle_current_value = attrs['value']
-                self.seats_types_option_flag = True
-
-        # 票类的Value
-        if self.form_flag and tag == 'select' and  ("name", "passenger_1_ticket") in attrs and ('id', "passenger_1_ticket") in attrs:
-            self.ticket_types_flag = True
-        if self.ticket_types_flag and tag == 'option':
-            attrs = dict(attrs)
-            if 'value' in attrs:
-                self.ticket_types[attrs['value']]=''
-                self.handle_current_value = attrs['value']
-                self.ticket_types_option_flag = True
-
-        # 证件类型的Value
-        if self.form_flag and tag == 'select' and  ("name", "passenger_1_cardtype") in attrs and ('id', "passenger_1_cardtype") in attrs:
-            self.card_types_flag = True
-        if self.card_types_flag and tag == 'option':
-            attrs = dict(attrs)
-            if 'value' in attrs:
-                self.card_types[attrs['value']]=''
-                self.handle_current_value = attrs['value']
-                self.card_types_option_flag = True
-
-        # 当前列车信息标记
-        if tag == 'table' and ('class', 'qr_box') in attrs and ('id', 'passenger_single_tb_id') not in attrs:
-            self.train_info_table_flag = True
-        if tag == 'tr':
-            self.tr_flag = True
-        if tag =='td' and len(attrs)==0:
-            self.seats_td_flag = True
-        if tag == 'td' and ('class', "bluetext") in attrs:
-            self.train_info_td_flag = True
-
-        # 验证码图片
-        if tag == 'img' and ('id', 'img_rrand_code') in attrs:
-            for x in attrs:
-                if x[0] == 'src':
-                    self.img_rand_code_url=x[1]
-                    break
-
-        # 错误信息
-        if tag=="div" and ('class', 'error_text') in attrs:
-            self.error_message_flag = True
+        attrs_dict = dict(attrs)
+        if tag == 'img' and ('id', 'img_rand_code') in attrs:
+            self.img_rand_code_url = attrs_dict['src']
+        if tag == 'div' and ('id', 'check_ticket_tit_id') in attrs and ('class', "info2") in attrs:
+            self.train_info_flag = True
 
     def handle_data(self, data):
-        # 当前列车信息
-        if self.train_info_table_flag and self.tr_flag and self.train_info_td_flag:
-            self.train_info.append(data.strip())
-        if self.train_info_table_flag and self.tr_flag and self.seats_td_flag:
-            self.current_seats.append(data.strip())
-
-        # 获取席别的Text
-        if self.seats_types_option_flag and self.handle_current_value.strip()!='':
-            self.seats_types[self.handle_current_value]=data.strip()
-            self.handle_current_value=''
-
-        # 获取票类型的Text
-        if self.ticket_types_option_flag and self.handle_current_value.strip()!='':
-            self.ticket_types[self.handle_current_value]=data.strip()
-            self.handle_current_value=''
-
-        # 证件类型的Text
-        if self.card_types_option_flag and self.handle_current_value.strip()!='':
-            self.card_types[self.handle_current_value]=data.strip()
-            self.handle_current_value=''
-
-        # 获取错误信息
-        if self.error_message_flag:
-            removeHTMLRe = re.compile(r'</?\w+[^>]*>', re.DOTALL)
-            self.error_message = removeHTMLRe.sub("", data)
+        if self.train_info_flag:
+            train_info_str = re.sub('<strong\w*>', ',', data)
+            train_info_str = re.sub('</strong>', '', train_info_str)
+            self.train_info = train_info_str.split(',').append('')
 
     def handle_endtag(self, tag):
-        # 结束表单hidden标记
-        if tag == 'form':
-            self.form_flag = False
-
-        # 结束列车信息标记
-        if tag == 'table':
-            self.train_info_table_flag = False
-        if tag == 'tr':
-            self.tr_flag = False
-        if tag == 'td':
-            self.train_info_td_flag = False
-            self.seats_td_flag = False
-
-        # 结束，席别，票类型，证件类型标记
-        if tag == 'select':
-            self.seats_types_flag = False
-            self.ticket_types_flag = False
-            self.card_types_flag = False
-        if tag=='option':
-            self.seats_types_option_flag = False
-            self.ticket_types_option_flag = False
-            self.card_types_option_flag = False
-
-        # 错误信息
         if tag == 'div':
-            self.error_message_flag = False
+            self.train_info_flag = False
 
     def get_train_info(self):
         return self.train_info
 
+    def get_hidden_params(self):
+        return self.order_request_params
+
+    def get_ticketInfoForPassengerForm(self):
+        return self.ticketInfoForPassengerForm
+
+    """
     def get_current_seats(self):
         return self.current_seats
-
-    def get_hidden_params(self):
-        return self.confirm_passenger_params
 
     def get_seats_types(self):
         return self.seats_types
@@ -180,104 +94,97 @@ class ParserConfirmPassengerInitPage(HTMLParser):
     def get_card_types(self):
         return self.card_types
 
-    def get_img_code_url(self):
-        return "https://dynamic.12306.cn"+self.img_rand_code_url
-
     def get_error_message(self):
         return self.error_message
+    """
+
+    def get_img_code_url(self):
+        return "https://kyfw.12306.cn" + self.img_rand_code_url
 
 
+# 提交用户预订请求，得到提交后的JSON
 def submitOrderRequest(ht, selectStr=None, queryParams={}):
-    if not selectStr and selectStr.strip()=='':
+    submitResult = ''
+    if not selectStr or not selectStr.strip():
         print("预定数据为空")
-    selectStr_arr = selectStr.split("#");
-    if(len(selectStr_arr)!=14):
-        print("无效的预定数据")
-    station_train_code=selectStr_arr[0];
-    lishi=selectStr_arr[1];
-    starttime=selectStr_arr[2];
-    trainno=selectStr_arr[3];
-    from_station_telecode=selectStr_arr[4];
-    to_station_telecode=selectStr_arr[5];
-    arrive_time=selectStr_arr[6];
-    from_station_name=selectStr_arr[7];
-    to_station_name=selectStr_arr[8];
-    from_station_no=selectStr_arr[9];
-    to_station_no=selectStr_arr[10];
-    ypInfoDetail=selectStr_arr[11];
-    mmStr = selectStr_arr[12];
-    locationCode = selectStr_arr[13];
+        return submitResult
+        # 检查用户的合法性
+    checkUserUrl = 'https://kyfw.12306.cn/otn/login/checkUser'
+    checkUserResult = ht.post(url=checkUserUrl, headers={'If-Modified-Since': 0, 'Cache-Control': 'no-cache'})
+    check_result_json = json.loads(checkUserResult)
+    if 'data' in check_result_json and 'flag' in check_result_json['data'] and check_result_json['data']['flag']:
+        checkusermdId = check_result_json['attributes'] if 'attributes' in check_result_json and check_result_json[
+            'attributes'] else 'undefined'
 
-    # 查询条件参数的整理
-    train_date=queryParams['train_date']
-    include_student="00"
-    from_station_telecode_name=queryParams['from_station']
-    to_station_telecode_name=queryParams['to_station']
-    single_round_type=1
-    if single_round_type==1:
-        round_train_date=queryParams['train_date']
-        round_start_time_str=queryParams['start_time']
-    elif single_round_type==2:
-        round_train_date = queryParams['round_train_date']
-        round_start_time_str= queryParams['round_start_time_str']
-    train_pass_type=queryParams['trainPassType']
-    train_class_arr=queryParams['trainClass']
-    start_time_str=queryParams['start_time']
+        # 查询条件参数的整理
+        train_date = queryParams['train_date']
+        purpose_codes = 'ADULT'
+        tour_flag = 'dc'
+        query_from_station_name = queryParams['from_station']
+        query_to_station_name = queryParams['to_station']
+        back_train_date = time.strftime('%Y-%m-%d', time.localtime(time.time()))
 
-    submitUrl = "https://dynamic.12306.cn/otsweb/order/querySingleAction.do?method=submutOrderRequest"
-    submitParams = {
-        "station_train_code" : station_train_code,
-        "train_date": train_date,                                  # 列车时间
-        "seattype_num": '',                                        # 席别
-        "from_station_telecode": from_station_telecode,
-        "to_station_telecode": to_station_telecode,
-        "include_student": include_student,                        # 学生票
-        "from_station_telecode_name": from_station_telecode_name,  # 查询框从哪里值
-        "to_station_telecode_name": to_station_telecode_name,      # 查询框到哪里值
-        "round_train_date": round_train_date,                      # 返程时间这里如果没有则有出发时间
-        "round_start_time_str": round_start_time_str,              # 返程时间段
-        "single_round_type": single_round_type,                    # 单程1，返程2
-        "train_pass_type": train_pass_type,                        # 列车通过类型
-        "train_class_arr": train_class_arr,                        # 列车类型
-        "start_time_str": start_time_str,                          # 开始时间段
-        # 获取具体车次的值
-        "lishi": lishi,
-        "train_start_time": starttime,
-        "trainno4": trainno,
-        "arrive_time": arrive_time,
-        "from_station_name": from_station_name,
-        "to_station_name": to_station_name,
-        "from_station_no": from_station_no,
-        "to_station_no": to_station_no,
-        "ypInfoDetail": ypInfoDetail,
-        "mmStr": mmStr,
-        "locationCode": locationCode,
-        "myversion": "undefined"               # 未知参数
-    }
-    # 请求预定操作，执行后页面会重定向
-    submitResult= ht.post(url=submitUrl, params=submitParams)
+        submitUrl = "https://kyfw.12306.cn/otn/leftTicket/submitOrderRequest"
+        # 预定的请求参数，注意参数顺序
+        # 注意这里为了防止secretStr被urllib.parse过度编码，在这里进行一次解码
+        # 否则调用HttpTester类的post方法将会将secretStr编码成为无效码,造成提交预定请求失败
+        submitParams = [
+            ('secretStr', urllib.parse.unquote(selectStr)), # 预订提交令牌
+            ('train_date', train_date), # 车票日期
+            ('back_train_date', back_train_date), # 返程日期，没有则为当前日期
+            ('tour_flag', tour_flag), # 旅行类型，单程dc,与返程fc
+            ('purpose_codes', purpose_codes), # 标记是否为成人(ADULT)与学生(0X00)
+            ('query_from_station_name', query_from_station_name), # 发站名称，汉字
+            ('query_to_station_name', query_to_station_name)      # 到站名称，汉字
+        ]
+        if checkusermdId != 'undefined':
+            submitParams.append(('_json_att', checkusermdId))
 
-    f = open("submitResult.html", 'w')
-    f.write(submitResult)
-    f.close()
+        # 请求预定操作，执行后页面会重定向
+        submitResult = ht.post(url=submitUrl, params=submitParams)
+        json_data = json.loads(submitResult)
+        if 'status' in json_data and json_data['status']:
+            if tour_flag == 'dc':
+                submitResult = getOrderInitHtml(ht)
+                return submitResult
+        else:
+            if 'messages' in json_data and json_data['messages']:
+                print('预订失败：%s\r\n%s' % (json_data['messages'], submitParams))
+            else:
+                print('预订失败：%s' % submitResult)
+    else:
+        if 'messages' in check_result_json and check_result_json['messages']:
+            print('验证用户合法性失败：%s' % check_result_json['messages'])
+        else:
+            print('验证用户合法性失败：%s' % checkUserResult)
 
     return submitResult
-    # 重定向页面URL，即乘客信息合核对页面
-    #    https://dynamic.12306.cn/otsweb/order/confirmPassengerAction.do?method=init
-    # redirctorContent = ht.get(url="https://dynamic.12306.cn/otsweb/order/confirmPassengerAction.do", params={"method": "init"})
 
-# 联系人JSON数据URL：
-#    https://dynamic.12306.cn/otsweb/order/confirmPassengerAction.do?method=getpassengerJson：
+
+def getOrderInitHtml(ht):
+    submitResult = ht.post(url='https://kyfw.12306.cn/otn/confirmPassenger/initDc')
+    f = open("submitResult.html", 'w', encoding='utf-8')
+    f.write(submitResult)
+    f.close()
+    return submitResult
+
+# 获取设定的所有常用联系人信息
+# https://kyfw.12306.cn/otn/confirmPassenger/getPassengerDTOs
 def getAllContacts(ht):
-    contactsUrl = "https://dynamic.12306.cn/otsweb/order/confirmPassengerAction.do"
-    params=[('method', 'getpassengerJson')]
-    resultContent = ht.get(url=contactsUrl, params=params)
-    if resultContent and resultContent.strip()!='':
+    contactsUrl = "https://kyfw.12306.cn/otn/confirmPassenger/getPassengerDTOs"
+    resultContent = ht.post(url=contactsUrl)
+    if resultContent and resultContent.strip():
         jsonData = json.loads(resultContent)
-        if 'passengerJson' in jsonData and len(jsonData['passengerJson'])>0:
-            return jsonData['passengerJson']
+        if 'data' in jsonData and jsonData['data'] and 'normal_passengers' in jsonData['data'] and jsonData['data'][
+            'normal_passengers']:
+            return jsonData['data']['normal_passengers']
         else:
-            print("未查找到常用联系人")
+            if 'data' in jsonData and 'exMsg' in jsonData['data'] and jsonData['data']['exMsg']:
+                print(jsonData['data']['exMsg'])
+            elif 'messages' in jsonData and jsonData['messages']:
+                print(jsonData['messages'])
+            else:
+                print("未查找到常用联系人")
     return []
 
 # 判断获取预定画面信息
@@ -285,19 +192,19 @@ def getInfoMessage(submitResult=''):
     messageRe = re.compile(r'var message\s*?=\s*?[\'\"](.+?)[\'\"];', re.DOTALL)
     message = ''
     collects = messageRe.findall(submitResult)
-    if len(collects)==1:
+    if len(collects) == 1:
         message = collects[0]
     return message
 
 # 模拟:submit_form_confirm，用于检测乘客输入值的正确性与否
 # JS URL: https://dynamic.12306.cn/otsweb/js/order/save_passenger_info.js
-# POST提交至：https://dynamic.12306.cn/otsweb/order/confirmPassengerAction.do?method=checkOrderInfo&rand=a6ud
+# POST提交至：https://kyfw.12306.cn/otn/leftTicket/submitOrderRequest
 # rand 为输入的验证码
 def checkOrderInfo(ht, params=None, rand=""):
-    if not params or len(params)<=0:
+    if not params or len(params) <= 0:
         print("参数不能为空")
         return False
-    checked_result_json_str = ht.post(url="https://dynamic.12306.cn/otsweb/order/confirmPassengerAction.do?method=checkOrderInfo&rand="+rand, params=params)
+    checked_result_json_str = ht.post(url="https://kyfw.12306.cn/otn/leftTicket/submitOrderRequest", params=params)
     checked_result_json = json.loads(checked_result_json_str)
     if 'errMsg' in checked_result_json and 'Y' != checked_result_json['errMsg']:
         print(checked_result_json['errMsg'])
@@ -326,7 +233,7 @@ def checkOrderInfo(ht, params=None, rand=""):
 # GET提交: https://dynamic.12306.cn/otsweb/order/confirmPassengerAction.do?method=getQueueCount
 # 结果：{"countT":0,"count":0,"ticket":"1*****30314*****00001*****00003*****0000","op_1":false,"op_2":false}
 def getQueueCount(ht, params=None, seat_type=None):
-    if not params or len(params)<=0:
+    if not params or len(params) <= 0:
         print("参数不能为空")
         return ''
     submitParams = [('method', 'getQueueCount')]
@@ -341,7 +248,7 @@ def getQueueCount(ht, params=None, seat_type=None):
         queue_note += "目前排队人数已经超过余票张数，请您选择其他席别或车次，特此提醒。"
     else:
         # 这里放开弹出窗体的确定按钮，充许预定
-        if 'countT' in json_data and json_data['countT'] > 0 :
+        if 'countT' in json_data and json_data['countT'] > 0:
             queue_note += "目前排队人数" + str(data.countT) + "人，"
         queue_note += "特此提醒。"
     queue_note += "\n请确认订单信息是否正确，如正确请点击“确定”，系统将为您随机分配席位。"
@@ -355,11 +262,11 @@ def getTicketCountDesc(mark, seat_type):
     seat_2 = -1
     i = 0
     while i < len(mark):
-        s = mark[i:10+i]
+        s = mark[i:10 + i]
         c_seat = s[0:1]
         if c_seat == seat_type:
             count = s[6:10]
-            while len(count) > 1 and count[0:1] == "0" :
+            while len(count) > 1 and count[0:1] == "0":
                 count = count[1:]
             count = int(count)
             if count < 3000:
@@ -367,9 +274,9 @@ def getTicketCountDesc(mark, seat_type):
             else:
                 seat_2 = count - 3000
         i = i + 10;
-    if seat_1 > -1 :
+    if seat_1 > -1:
         rt += " %s 张" % seat_1
-    if seat_2 > -1 :
+    if seat_2 > -1:
         rt += ", 无座 %s 张" % seat_2
     return rt
 
@@ -404,12 +311,11 @@ def checkQueueOrder(ht, tourFlag, params=None):
 
 # 订单排队等待时间
 class OrderQueueWaitTime:
-
     def __init__(self, ht, tourFlag, waitMethod, finishMethod):
         self.tourFlag = tourFlag
         self.waitMethod = waitMethod
         self.finishMethod = finishMethod
-        
+
         self.dispTime = 1
         self.nextRequestTime = 1
         self.isFinished = False
@@ -428,7 +334,7 @@ class OrderQueueWaitTime:
             self.isFinished = True
             self.finishMethod(self.tourFlag, self.dispTime, self.waitObj);
             return
-        
+
         if self.dispTime == self.nextRequestTime:
             self.getWaitTime()
 
@@ -453,38 +359,39 @@ class OrderQueueWaitTime:
         params = [('method', 'queryOrderWaitTime'), ('tourFlag', self.tourFlag)]
         url = 'https://dynamic.12306.cn/otsweb/order/myOrderAction.do'
         json_str = self.ht.get(url=url, params=params)
-        if json_str and json_str.strip()!=0:
+        if json_str and json_str.strip() != 0:
             json_data = json.loads(json_str)
             self.waitObj = json_data
             self.dispTime = json_data['waitTime']
 
-            flashWaitTime = int(json_data['waitTime']/1.5)
+            flashWaitTime = int(json_data['waitTime'] / 1.5)
             if flashWaitTime > 60:
                 flashWaitTime = 60
             else:
                 flashWaitTime = flashWaitTime
             nextTime = json_data['waitTime'] - flashWaitTime;
-            if nextTime<=0:
+            if nextTime <= 0:
                 self.nextRequestTime = 1
             else:
                 self.nextRequestTime = nextTime
 
-def waitFunc(tourFlag, return_time, show_time) :
-    if return_time <= 5 :
+
+def waitFunc(tourFlag, return_time, show_time):
+    if return_time <= 5:
         print("您的订单已经提交，系统正在处理中，请稍等。")
-    elif return_time > 30 * 60 :
+    elif return_time > 30 * 60:
         print("您的订单已经提交，预计等待时间超过30分钟，请耐心等待。")
     else:
         print("您的订单已经提交，最新预估等待时间" + show_time + "，请耐心等待。")
 
 # 跳转-单程
 def finishMethod(tourFlag, time, returnObj, params=None):
-    if time == -1 :
+    if time == -1:
         action_url = "https://dynamic.12306.cn/otsweb/order/";
         if tourFlag == 'dc':
             # 异步下单-单程
             action_url = "confirmPassengerAction.do?method=payOrder&orderSequence_no=" + returnObj['orderId'];
-        elif tourFlag == 'wc' :
+        elif tourFlag == 'wc':
             # 异步下单-往程
             action_url = "confirmPassengerAction.do?method=wcConfirm&orderSequence_no=" + returnObj['orderId']
         elif tourFlag == 'fc':
@@ -493,7 +400,7 @@ def finishMethod(tourFlag, time, returnObj, params=None):
         elif tourFlag == 'gc':
             # 异步下单-改签
             action_url = "confirmPassengerResignAction.do?method=resignPay&orderSequence_no=" + returnObj['orderId']
-        #ht.post(url=action_url, params=params)
+            #ht.post(url=action_url, params=params)
         # 处理订单提交成功操作
         print('车票预定成功订单号为：%s，请立即打开浏览器登录12306，访问‘未完成订单’在45分钟内完成支付！' % returnObj['orderId'])
         pass
@@ -511,15 +418,16 @@ def procFail(flag, returnObj):
             print("占座失败，原因:" + returnObj['msg'] + " 请访问" + my12306URL + ",办理其他业务.")
         else:
             print("占座失败，原因:" + returnObj['msg'] + " 请访问" + renewURL + ",重新选择其它车次.")
-    elif flag == -3 :
+    elif flag == -3:
         print("订单已撤销 请访问" + renewURL + ",重新选择其它车次.")
     else:
         # 进入未完成订单页面
         # url = "https://dynamic.12306.cn/otsweb/order/myOrderAction.do?method=queryMyOrderNotComplete&leftmenu=Y&fakeParent=true";
         pass
 
+
 def main():
-    f = open ("./resources/order/confirm_passenger_init.html", 'r', encoding="utf-8")
+    f = open("./resources/order/confirm_passenger_init.html", 'r', encoding="utf-8")
     submitResult = f.read()
     f.close()
 
@@ -529,6 +437,7 @@ def main():
     f = open('hend_params.txt', 'w')
     f.write(str((parser.get_hidden_params()).items()))
     f.close()
+
 
 if __name__ == '__main__':
     main()

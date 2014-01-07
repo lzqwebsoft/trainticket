@@ -3,6 +3,8 @@ import gzip
 import socket
 import urllib.request, urllib.parse, urllib.error
 import http.cookiejar
+
+
 class HttpTester:
     def __init__(self, timeout=10, addHeaders=True):
         # 设置超时时间
@@ -18,13 +20,14 @@ class HttpTester:
 
     def __addHeaders(self):
         # 添加默认的 headers.
-        self.__opener.addheaders = [('User-Agent', 'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; WOW64; Trident/6.0)'),
-                                    ('Connection', 'keep-alive'),
-                                    ('Cache-Control', 'no-cache'),
-                                    ('Host', 'kyfw.12306.cn'),
-                                    ('Accept-Language:', 'zh-cn,zh;q=0.8,en-us;q=0.5,en;q=0.3'),
-                                    ('Accept-Encoding', 'gzip, deflate'),
-                                    ('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8')]
+        self.__opener.addheaders = [
+            ('User-Agent', 'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; WOW64; Trident/6.0)'),
+            ('Connection', 'keep-alive'),
+            ('Cache-Control', 'no-cache'),
+            ('Host', 'kyfw.12306.cn'),
+            ('Accept-Language:', 'zh-cn,zh;q=0.8,en-us;q=0.5,en;q=0.3'),
+            ('Accept-Encoding', 'gzip, deflate'),
+            ('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8')]
 
     def __decode(self, webPage, charset):
         '''gzip解压，并根据指定的编码解码网页'''
@@ -63,30 +66,40 @@ class HttpTester:
 
     def get(self, url, params={}, headers={}, charset='UTF-8'):
         '''HTTP GET 方法'''
+        request_url = url
         if params: url += '?' + urllib.parse.urlencode(params)
-        request = urllib.request.Request(url)
-        for k,v in headers.items():
-            request.add_header(k, v)    # 为特定的 request 添加指定的 headers
+        while True:
+            request = urllib.request.Request(url)
+            for k, v in headers.items():
+                request.add_header(k, v)    # 为特定的 request 添加指定的 headers
 
-        try:
-            response = urllib.request.urlopen(request)
-        except urllib.error.HTTPError as e:
-            self.__error(e)
-        else:
-            return self.__decode(response.read(), charset)
+            try:
+                response = urllib.request.urlopen(request)
+                return self.__decode(response.read(), charset)
+            except urllib.error.HTTPError as e:
+                self.__error(e)
+                return None
+            except socket.timeout:
+                print('GET请求超时：%s\r\n重新获取.' % (request_url))
+                continue
+
 
     def post(self, url, params={}, headers={}, charset='UTF-8'):
         '''HTTP POST 方法'''
         params = urllib.parse.urlencode(params)
-        request = urllib.request.Request(url, data=params.encode(charset))     # 带 data 参数的 request 被认为是 POST 方法。
-        for k,v in headers.items(): request.add_header(k, v)
+        while True:
+            request = urllib.request.Request(url, data=params.encode(charset))     # 带 data 参数的 request 被认为是 POST 方法。
+            for k, v in headers.items(): request.add_header(k, v)
 
-        try:
-            response = urllib.request.urlopen(request)
-        except urllib.error.HTTPError as e:
-            self.__error(e)
-        else:
-            return self.__decode(response.read(), charset)
+            try:
+                response = urllib.request.urlopen(request)
+                return self.__decode(response.read(), charset)
+            except urllib.error.HTTPError as e:
+                self.__error(e)
+                return None
+            except socket.timeout:
+                print('POST请求超时：%s\r\n重新获取.' % (url))
+                continue
 
     def download(self, url, savefile):
         '''下载文件或网页'''
@@ -98,15 +111,16 @@ class HttpTester:
                 self.__opener.addheaders.remove(header)
 
         __perLen = 0
+
         def reporthook(a, b, c):    # a:已经下载的数据大小; b:数据大小; c:远程文件大小;
             if c > 1000000:
                 nonlocal __perLen
                 per = (100.0 * a * b) / c
-                if per>100: per=100
+                if per > 100: per = 100
                 per = '{:.2f}%'.format(per)
-                print('\b'*__perLen, per, end='')   # 打印下载进度百分比
+                print('\b' * __perLen, per, end='')   # 打印下载进度百分比
                 sys.stdout.flush()
-                __perLen = len(per)+1
+                __perLen = len(per) + 1
 
         print('--> {}\t'.format(url), end='')
         try:

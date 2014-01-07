@@ -96,13 +96,12 @@ def getTrainList(queryResult):
             train["take_time"] = train_detail_info['lishi']
             # 各种座位剩余数(商务座,特等座,一等座,二等座,高级软卧,软卧,硬卧,软座,硬座,无座,其他)
             seat_codes = ('swz_num', 'tz_num', 'zy_num', 'ze_num', 'gr_num', 'rw_num', 'yw_num',
-                          'rz_num', 'yz_num', 'wz_num', 'qt_num', 'gg_num' ,'yb_num')
+                          'rz_num', 'yz_num', 'wz_num', 'qt_num', 'gg_num', 'yb_num')
             for (i, x) in enumerate(seat_codes):
-                train["seat_type" + str(i+1)] = train_detail_info[x]
-            # 预定参数
-            train["order_param"] = ""
-            if cvsData['secretStr']:
-                train["order_param"] = cvsData['secretStr']
+                train["seat_type" + str(i + 1)] = train_detail_info[x]
+                # 预定参数
+            train["order_param"] = cvsData['secretStr']
+            train['buttonTextInfo'] = cvsData['buttonTextInfo']
             trains.append(train)
     return trains
 
@@ -131,6 +130,8 @@ https://kyfw.12306.cn/otn/leftTicket/query
     leftTicketDTO.train_date=2014-01-25 出发日期
     purpose_codes=ADULT    对应的身份标只，查看是否是学生
     """
+
+
 def queryTrains(ht, from_station, to_station, train_date=None, start_time="00:00--24:00", trainClass="QB#D#Z#T#K#QT#",
                 trainPassType="QB"):
     if not train_date: train_date = time.strftime("%Y-%m-%d", time.localtime())
@@ -144,12 +145,15 @@ def queryTrains(ht, from_station, to_station, train_date=None, start_time="00:00
 
     queryResult = ht.get(url="https://kyfw.12306.cn/otn/leftTicket/query", params=selectParams)
     query_data = json.loads(queryResult)
-    if type(query_data)==dict and query_data['data'] and len(query_data['data']) > 0:
+    if type(query_data) == dict and 'data' in query_data and query_data['data']:
         # 解析整理得到的列车数据
         trains = getTrainList(query_data['data'])
-        if trains!=None and len(trains) > 0:
+        if trains != None and len(trains) > 0:
             return trains
     else:
-        print(queryResult)
+        if 'messages' in query_data and query_data['messages']:
+            print(query_data['messages'])
+        else:
+            print(queryResult)
         print('查询失败')
     return []

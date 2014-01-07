@@ -2,6 +2,8 @@
 import json
 import io
 import random
+import socket
+
 try:
     # Python2
     from Tkinter import *
@@ -16,8 +18,10 @@ except ImportError:
     #from tkinter import messagebox
 from PIL import Image, ImageTk
 
+
 class ConfirmPassengerFrame:
-    def __init__(self, contacts=None, rand_image_url='', train_info=None, seats_info=None, seats_types=None, ticket_types=None, card_types=None):
+    def __init__(self, contacts=None, rand_image_url='', train_info=None, passenger_params=None,
+                 ticket_types=None, card_types=None):
         self.root = Tk()
         self.root.title("车票预订")
         self.root['padx'] = 20
@@ -28,43 +32,44 @@ class ConfirmPassengerFrame:
         trainInfoPanel.pack(fill=X, pady=8)
 
         trainInfoTitle = Label(trainInfoPanel, text="列车信息", font=('黑体', 12, 'bold'),
-                            foreground='white', background="#8DB7E0")
-        trainInfoTitle.grid(row= 0, column=0, columnspan=5, sticky=W+E+N+S)
-        if train_info and len(train_info)>0:
+                               foreground='white', background="#8DB7E0")
+        trainInfoTitle.grid(row=0, column=0, columnspan=5, sticky=W + E + N + S)
+        if train_info and len(train_info) > 0:
             for x in range(len(train_info)):
                 label = Label(trainInfoPanel, text=train_info[x], foreground='#2C72BA', background='#F3F8FC', width=20)
-                label.grid(row=1, column=x, padx=1, sticky=W+E+N+S)
+                label.grid(row=1, column=x, padx=1, sticky=W + E + N + S)
         else:
             label = Label(trainInfoPanel, text='列车信息获取失败(〒_〒)!', foreground='red', width=20)
-            label.grid(row=1, column=0, padx=1, sticky=W+E+N+S)
+            label.grid(row=1, column=0, padx=1, sticky=W + E + N + S)
 
         row = 1
-        if seats_info and len(seats_info)>0:
+        if 'leftDetails' in passenger_params and passenger_params['leftDetails']:
+            seats_info = passenger_params['leftDetails']
             column = 0
             for text in seats_info:
                 if column % 5 == 0:
                     row += 1
                     column = 0
                 seatLabel = Label(trainInfoPanel, text=text, width=20)
-                seatLabel.grid(row=row, column=column, padx=1, sticky=W+E+N+S)
+                seatLabel.grid(row=row, column=column, padx=1, sticky=W + E + N + S)
                 column += 1
         else:
-            row = row+1
+            row = row + 1
             label = Label(trainInfoPanel, text='席别信息获取失败(〒_〒)!', foreground='red', width=20)
-            label.grid(row=row, column=0, padx=1, sticky=W+E+N+S)
+            label.grid(row=row, column=0, padx=1, sticky=W + E + N + S)
 
         promptLabel = Label(trainInfoPanel, text="以上余票信息随时发生变化，仅作参考", foreground='red')
-        promptLabel.grid(row=row+1, column=0, columnspan=5, sticky=W+E+N+S)
+        promptLabel.grid(row=row + 1, column=0, columnspan=5, sticky=W + E + N + S)
 
         # 我的常用联系人
         contactPanel = Frame(self.root)
         contactPanel.pack(fill=X, pady=8)
         contactTitle = Label(contactPanel, text="常用联系人", font=('黑体', 12, 'bold'),
-                            foreground='white', background="#8DB7E0")
-        contactTitle.grid(row= 0, column=0, columnspan=8, sticky=W+E+N+S)
+                             foreground='white', background="#8DB7E0")
+        contactTitle.grid(row=0, column=0, columnspan=8, sticky=W + E + N + S)
         self.contacts = contacts
         self.users = []
-        if self.contacts and len(self.contacts)>0:
+        if self.contacts and len(self.contacts) > 0:
             row = 0
             column = 0
             for user in self.contacts:
@@ -74,12 +79,12 @@ class ConfirmPassengerFrame:
                     column = 0
                 chk = Checkbutton(contactPanel, text=user['passenger_name'], variable=var, width=9)
                 chk.bind("<Button-1>", self.contactChangeCallBack)
-                chk.grid(row= row, column=column, sticky=W+E+N+S, padx=2)
+                chk.grid(row=row, column=column, sticky=W + E + N + S, padx=2)
                 self.users.append(var)
                 column += 1
         else:
             label = Label(contactPanel, text='未查找到常用联系人')
-            label.grid(row= 1, column=1, sticky=W+E+N+S)
+            label.grid(row=1, column=1, sticky=W + E + N + S)
             contactPanel.columnconfigure(0, weight=1)
             contactPanel.columnconfigure(2, weight=1)
 
@@ -87,7 +92,7 @@ class ConfirmPassengerFrame:
         customerPanel = Frame(self.root)
         customerPanel.pack(fill=X, pady=8)
         customerTitle = Label(customerPanel, text="乘车人信息", font=('黑体', 12, 'bold'),
-                            foreground='white', background="#8DB7E0")
+                              foreground='white', background="#8DB7E0")
         customerTitle.pack(fill=X)
 
         self.allCustomerFileds = []
@@ -101,7 +106,7 @@ class ConfirmPassengerFrame:
         customerInfoHead = CustomerInfoHead(self.customerTable)
         customerInfoHead.pack(fill=X)
         customerInfoContent = CustomerInfoContent(self.customerTable, seats_types=self.seats_types,
-                                                ticket_types=self.ticket_types, card_types=self.card_types)
+                                                  ticket_types=self.ticket_types, card_types=self.card_types)
         customerInfoContent.deleteOparetorLabel.bind("<Button-1>", self.removeCurstomerCallBack)
         customerInfoContent.pack(fill=X, pady=5)
         self.allCustomerFileds.append(customerInfoContent)
@@ -114,8 +119,14 @@ class ConfirmPassengerFrame:
         self.randImage.grid(row=0, column=1, padx=5, pady=5)
 
         self.rand_image_url = rand_image_url
-        if rand_image_url and rand_image_url.strip()!='':
-            image_bytes = urlopen(self.rand_image_url).read()
+        if rand_image_url and rand_image_url.strip():
+            while True:
+                try:
+                    image_bytes = urlopen(self.rand_image_url).read()
+                    break
+                except socket.timeout:
+                    print('获取验证码超时：%s\r\n重新获取.' % (self.url))
+                    continue
             data_stream = io.BytesIO(image_bytes)
             self.pil_image = Image.open(data_stream)
             self.tk_image = ImageTk.PhotoImage(self.pil_image)
@@ -135,9 +146,9 @@ class ConfirmPassengerFrame:
         operatorPanel = Frame(self.root)
         operatorPanel.pack(fill=X, pady=8)
         self.backButton = Button(operatorPanel, text="重新选择")
-        self.backButton.grid(row=0, column=1, sticky=W+E+N+S, padx=5)
+        self.backButton.grid(row=0, column=1, sticky=W + E + N + S, padx=5)
         self.submitButton = Button(operatorPanel, text="提交订单")
-        self.submitButton.grid(row=0, column=2, sticky=W+E+N+S, padx=5)
+        self.submitButton.grid(row=0, column=2, sticky=W + E + N + S, padx=5)
         operatorPanel.columnconfigure(0, weight=1)
         operatorPanel.columnconfigure(3, weight=1)
 
@@ -146,8 +157,8 @@ class ConfirmPassengerFrame:
         height = 500
         ws = self.root.winfo_screenwidth()
         hs = self.root.winfo_screenheight()
-        x = int((ws/2) - (width/2) )
-        y = int((hs/2) - (height/2) )
+        x = int((ws / 2) - (width / 2))
+        y = int((hs / 2) - (height / 2))
         self.root.geometry('{}x{}+{}+{}'.format(width, height, x, y))
         self.root.resizable(False, True)
         self.root.mainloop()
@@ -156,7 +167,7 @@ class ConfirmPassengerFrame:
     def getAllPassengerParams(self):
         passenger_fields = self.allCustomerFileds
         params = {}
-        if passenger_fields and len(passenger_fields)>0:
+        if passenger_fields and len(passenger_fields) > 0:
             for field in passenger_fields:
                 param = field.getSetCustomerInfo()
                 params.update(param)
@@ -166,7 +177,7 @@ class ConfirmPassengerFrame:
     def getPassengerInfo(self):
         passenger_fields = self.allCustomerFileds
         infos = []
-        if passenger_fields and len(passenger_fields)>0:
+        if passenger_fields and len(passenger_fields) > 0:
             for field in passenger_fields:
                 infos.append(field.getSetCusomerInfoText())
         return infos
@@ -174,7 +185,7 @@ class ConfirmPassengerFrame:
     # 获取输入的输入的验证码
     def getRandCode(self):
         rand_code = self.randImage.get()
-        if rand_code.strip()!="":
+        if rand_code.strip() != "":
             rand_code = rand_code.strip()
         return rand_code
 
@@ -183,13 +194,19 @@ class ConfirmPassengerFrame:
         return len(self.allCustomerFileds)
 
     def refreshImageCallBack(self):
-        if self.rand_image_url and self.rand_image_url.strip()!='':
+        if self.rand_image_url and self.rand_image_url.strip() != '':
             url = self.rand_image_url + "&" + str(random.random())
-            image_bytes = urlopen(url).read()
+            while True:
+                try:
+                    image_bytes = urlopen(url).read()
+                    break
+                except socket.timeout:
+                    print('获取验证码超时：%s\r\n重新获取.' % (self.url))
+                    continue
             data_stream = io.BytesIO(image_bytes)
             self.pil_image = Image.open(data_stream)
             self.tk_image = ImageTk.PhotoImage(self.pil_image)
-            self.randImageShow.configure(image = self.tk_image)
+            self.randImageShow.configure(image=self.tk_image)
         else:
             print("验证码URL不能为空")
 
@@ -205,12 +222,12 @@ class ConfirmPassengerFrame:
         contained = False
         parent_name = ''
         for customerFiled in self.allCustomerFileds:
-            if customerFiled.getCustomerName()==username:
+            if customerFiled.getCustomerName() == username:
                 contained = True
                 parent_name = str(customerFiled)
 
         if not selected and contained:
-            if count==1:
+            if count == 1:
                 self.allCustomerFileds[0].clearCustomerInfo()
             else:
                 # 去掉己添加的用户
@@ -219,23 +236,23 @@ class ConfirmPassengerFrame:
             # 当乘车人域中有一个输入域为空白，则将其设置为选中联系人，不用新建输入域
             emptyField = None
             for customerFiled in self.allCustomerFileds:
-                if customerFiled.getCustomerName().strip()=="":
+                if customerFiled.getCustomerName().strip() == "":
                     emptyField = customerFiled
                     break
-            # 从当前联系人列表中检索该联系人信息
+                    # 从当前联系人列表中检索该联系人信息
             current_user_info = None
             for contact in self.contacts:
                 passenger_name = contact['passenger_name'].strip()
                 if passenger_name == username:
                     current_user_info = contact
                     break
-            if emptyField!=None:
+            if emptyField != None:
                 customerFiled.setCustomerInfo(current_user_info)
             else:
                 if count == 4:
                     self.addCoustomerButton.configure(state=DISABLED)
-                # 添加选中的用户
-                self.addNoneCustomer(index=count+1, user_info=current_user_info)
+                    # 添加选中的用户
+                self.addNoneCustomer(index=count + 1, user_info=current_user_info)
 
     # 添加1位新的乘客时添加
     def addOneCustomerCallBack(self):
@@ -244,11 +261,11 @@ class ConfirmPassengerFrame:
             return
         if count == 4:
             self.addCoustomerButton.configure(state=DISABLED)
-        self.addNoneCustomer(index=count+1)
+        self.addNoneCustomer(index=count + 1)
 
     # 删除联系人时添加
     def removeCurstomerCallBack(self, event):
-        if len(self.allCustomerFileds)==1:
+        if len(self.allCustomerFileds) == 1:
             # messagebox.showerror("错误", "最后一位乘客不能删除！")
             self.allCustomerFileds[0].clearCustomerInfo()
             return
@@ -257,12 +274,12 @@ class ConfirmPassengerFrame:
         #parentWidget =widget.nametowidget(parent_name) # 由父组件名得到父组件
         #parentWidget.pack_forget()            # 界面中删除父组件
         #self.allCustomerFileds.remove(parentWidget)
-        
+
         self.removeCustomer(parent_name=parent_name)
 
     def addNoneCustomer(self, index=1, user_info=None):
         newCustomerInfoContent = CustomerInfoContent(self.customerTable, index=index, seats_types=self.seats_types,
-                                                    ticket_types=self.ticket_types, card_types=self.card_types)
+                                                     ticket_types=self.ticket_types, card_types=self.card_types)
         newCustomerInfoContent.pack(fill=X, pady=5)
         newCustomerInfoContent.deleteOparetorLabel.bind("<Button>", self.removeCurstomerCallBack)
         newCustomerInfoContent.setCustomerInfo(user_info)    # 设置乘客信息
@@ -285,6 +302,7 @@ class ConfirmPassengerFrame:
 
     def quit(self):
         self.root.destroy()
+
 
 class CustomerInfoHead(Frame):
     def __init__(self, parent):
@@ -314,12 +332,13 @@ class CustomerInfoHead(Frame):
         label = Label(self, text="操作", width=4)
         label.grid(row=0, column=7, padx=5)
 
+
 class CustomerInfoContent(Frame):
     def __init__(self, parent, index=1, seats_types=None, ticket_types=None, card_types=None):
         Frame.__init__(self, parent)
 
         self.index = index
-        self.noLabel = Label(self, text= "第%d位" % index)
+        self.noLabel = Label(self, text="第%d位" % index)
         self.noLabel.grid(row=0, column=0, padx=5)
 
         self.seats_types = seats_types
@@ -359,26 +378,27 @@ class CustomerInfoContent(Frame):
         <option value="G">台湾通行证</option>
         <option value="B">护照</option>
         '''
+
     def udpateNoLabelText(self, index):
         self.index = index
-        self.noLabel.configure(text = "第%d位" % index)
+        self.noLabel.configure(text="第%d位" % index)
 
     def getCustomerName(self):
         name = self.customerName.get()
-        if name!=None:
+        if name != None:
             name = name.strip()
         return name
 
     def setCustomerName(self, customerName=''):
         self.customerName.delete(0, END)
-        if customerName.strip()!='':
+        if customerName.strip() != '':
             customerName = customerName.strip()
             self.customerName.insert(0, customerName)
 
     def setCustomerInfo(self, user_info=None):
         if not user_info:
             return
-        # 由用户信息设置票类
+            # 由用户信息设置票类
         ticket_type = self.ticket_types[user_info['passenger_type']]
         self.customerTypeListBox.set(ticket_type)
         # 由用户信息设置用户名
@@ -418,7 +438,7 @@ class CustomerInfoContent(Frame):
             if text == seat_type:
                 params['passenger_%d_seat' % self.index] = value
                 break
-        # 得到选中的票类
+                # 得到选中的票类
         params['passenger_%d_ticket' % self.index] = ''
         ticket_type = self.customerTypeListBox.get()
         ticket_type = ticket_type.strip()
@@ -426,7 +446,7 @@ class CustomerInfoContent(Frame):
             if ticket_type == text:
                 params['passenger_%d_ticket' % self.index] = value
                 break
-        # 得到设置的用户名
+                # 得到设置的用户名
         params['passenger_%d_name' % self.index] = self.getCustomerName()
         # 得到证件类型
         params['passenger_%d_cardtype' % self.index] = ''
@@ -436,7 +456,7 @@ class CustomerInfoContent(Frame):
             if card_type == text:
                 params['passenger_%d_cardtype' % self.index] = value
                 break
-        # 得到证件号
+                # 得到证件号
         params['passenger_%d_cardno' % self.index] = self.cardNo.get()
         # 手机号
         params['passenger_%d_mobileno' % self.index] = self.cellphone.get()
@@ -470,7 +490,7 @@ class CustomerInfoContent(Frame):
 
 # 订单提交对话框
 class ConfirmOrderDialog(Toplevel):
-    def __init__(self, parent, prompt_text = '', train_info=None, passenger_info=None, okFunc=None):
+    def __init__(self, parent, prompt_text='', train_info=None, passenger_info=None, okFunc=None):
         Toplevel.__init__(self, parent)
         self.transient(parent)
 
@@ -491,8 +511,8 @@ class ConfirmOrderDialog(Toplevel):
         if not self.initial_focus:
             self.initial_focus = self
         self.protocol("WM_DELETE_WINDOW", self.cancel)
-        self.geometry("+%d+%d" % (parent.winfo_rootx()+50,
-                                  parent.winfo_rooty()+80))
+        self.geometry("+%d+%d" % (parent.winfo_rootx() + 50,
+                                  parent.winfo_rooty() + 80))
         self.initial_focus.focus_set()
         self.wait_window(self)
 
@@ -501,7 +521,8 @@ class ConfirmOrderDialog(Toplevel):
     def body(self, master):
         # create dialog body.  return widget that should have
         # initial focus. 
-        title1 = Label(master, text="车次信息", background='#DEE9F5', foreground='#3177BF', font=('黑体', 12, 'normal'), width=83)
+        title1 = Label(master, text="车次信息", background='#DEE9F5', foreground='#3177BF', font=('黑体', 12, 'normal'),
+                       width=83)
         title1.pack(fill=X, pady=5)
 
         tarin_info_panel = Frame(master)
@@ -514,7 +535,7 @@ class ConfirmOrderDialog(Toplevel):
         title2.pack(fill=X)
 
         rowHeight = 35
-        height = (len(self.passenger_info)+1)*rowHeight
+        height = (len(self.passenger_info) + 1) * rowHeight
         border_color = '#9EB6CE'
         passenger_info_canvas = Canvas(master, height=height, background='white')
         passenger_info_canvas.pack(fill=X)
@@ -522,37 +543,51 @@ class ConfirmOrderDialog(Toplevel):
         # 边框
         passenger_info_canvas.create_rectangle(3, 3, width, height, width=1, outline=border_color)
         # 标题
-        passenger_info_canvas.create_rectangle(3, 3, width, rowHeight, width=1, outline=border_color, fill='#E8F0F9')  #E8F0F9
-        passenger_info_canvas.create_text(50/2+3, rowHeight/2+3, text='序号')   # 第一列宽50
+        passenger_info_canvas.create_rectangle(3, 3, width, rowHeight, width=1, outline=border_color,
+                                               fill='#E8F0F9')  #E8F0F9
+        passenger_info_canvas.create_text(50 / 2 + 3, rowHeight / 2 + 3, text='序号')   # 第一列宽50
         passenger_info_canvas.create_line(53, 3, 53, rowHeight, width=1, fill=border_color)
-        passenger_info_canvas.create_text(80/2+53, rowHeight/2+3, text='席别')   # 第二列宽80
+        passenger_info_canvas.create_text(80 / 2 + 53, rowHeight / 2 + 3, text='席别')   # 第二列宽80
         passenger_info_canvas.create_line(133, 3, 133, rowHeight, width=1, fill=border_color)
-        passenger_info_canvas.create_text(80/2+133, rowHeight/2+3, text='票种')   # 第三列宽80
+        passenger_info_canvas.create_text(80 / 2 + 133, rowHeight / 2 + 3, text='票种')   # 第三列宽80
         passenger_info_canvas.create_line(213, 3, 213, rowHeight, width=1, fill=border_color)
-        passenger_info_canvas.create_text(100/2+213, rowHeight/2+3, text='姓名')   # 第四列宽100
+        passenger_info_canvas.create_text(100 / 2 + 213, rowHeight / 2 + 3, text='姓名')   # 第四列宽100
         passenger_info_canvas.create_line(313, 3, 313, rowHeight, width=1, fill=border_color)
-        passenger_info_canvas.create_text(80/2+313, rowHeight/2+3, text='证件类型')   # 第五列宽80
+        passenger_info_canvas.create_text(80 / 2 + 313, rowHeight / 2 + 3, text='证件类型')   # 第五列宽80
         passenger_info_canvas.create_line(393, 3, 393, rowHeight, width=1, fill=border_color)
-        passenger_info_canvas.create_text(150/2+393, rowHeight/2+3, text='证件号码')   # 第六列宽150
+        passenger_info_canvas.create_text(150 / 2 + 393, rowHeight / 2 + 3, text='证件号码')   # 第六列宽150
         passenger_info_canvas.create_line(543, 3, 543, rowHeight, width=1, fill=border_color)
-        passenger_info_canvas.create_text((width-543)/2+543, (rowHeight+3)/2, text='手机号')
+        passenger_info_canvas.create_text((width - 543) / 2 + 543, (rowHeight + 3) / 2, text='手机号')
         # 内容
         row = 1
         for info in self.passenger_info:
-            if row%2==0: passenger_info_canvas.create_rectangle(3, 3+row*rowHeight, width, rowHeight*(row+1), width=1, outline=border_color, fill='#E8F0F9')
-            passenger_info_canvas.create_text(50/2+3, rowHeight/2+3+row*rowHeight, text=row)   # 第一列宽50
-            passenger_info_canvas.create_line(53, row*rowHeight, 53, rowHeight*(row+1), width=1, fill=border_color)
-            passenger_info_canvas.create_text(80/2+53, rowHeight/2+3+row*rowHeight, text=info[0])   # 第二列宽80
-            passenger_info_canvas.create_line(133, row*rowHeight, 133, rowHeight*(row+1), width=1, fill=border_color)
-            passenger_info_canvas.create_text(80/2+133, rowHeight/2+3+row*rowHeight, text=info[1])   # 第三列宽80
-            passenger_info_canvas.create_line(213, row*rowHeight, 213, rowHeight*(row+1), width=1, fill=border_color)
-            passenger_info_canvas.create_text(100/2+213, rowHeight/2+3+row*rowHeight, text=info[2])   # 第四列宽100
-            passenger_info_canvas.create_line(313, row*rowHeight, 313, rowHeight*(row+1), width=1, fill=border_color)
-            passenger_info_canvas.create_text(80/2+313, rowHeight/2+3+row*rowHeight, text=info[3])   # 第五列宽80
-            passenger_info_canvas.create_line(393, row*rowHeight, 393, rowHeight*(row+1), width=1, fill=border_color)
-            passenger_info_canvas.create_text(150/2+393, rowHeight/2+3+row*rowHeight, text=info[4])   # 第六列宽150
-            passenger_info_canvas.create_line(543, row*rowHeight, 543, rowHeight*(row+1), width=1, fill=border_color)
-            passenger_info_canvas.create_text((width-543)/2+543, rowHeight/2+3+row*rowHeight, text=info[5])
+            if row % 2 == 0: passenger_info_canvas.create_rectangle(3, 3 + row * rowHeight, width,
+                                                                    rowHeight * (row + 1), width=1,
+                                                                    outline=border_color, fill='#E8F0F9')
+            passenger_info_canvas.create_text(50 / 2 + 3, rowHeight / 2 + 3 + row * rowHeight, text=row)   # 第一列宽50
+            passenger_info_canvas.create_line(53, row * rowHeight, 53, rowHeight * (row + 1), width=1,
+                                              fill=border_color)
+            passenger_info_canvas.create_text(80 / 2 + 53, rowHeight / 2 + 3 + row * rowHeight, text=info[0])   # 第二列宽80
+            passenger_info_canvas.create_line(133, row * rowHeight, 133, rowHeight * (row + 1), width=1,
+                                              fill=border_color)
+            passenger_info_canvas.create_text(80 / 2 + 133, rowHeight / 2 + 3 + row * rowHeight,
+                                              text=info[1])   # 第三列宽80
+            passenger_info_canvas.create_line(213, row * rowHeight, 213, rowHeight * (row + 1), width=1,
+                                              fill=border_color)
+            passenger_info_canvas.create_text(100 / 2 + 213, rowHeight / 2 + 3 + row * rowHeight,
+                                              text=info[2])   # 第四列宽100
+            passenger_info_canvas.create_line(313, row * rowHeight, 313, rowHeight * (row + 1), width=1,
+                                              fill=border_color)
+            passenger_info_canvas.create_text(80 / 2 + 313, rowHeight / 2 + 3 + row * rowHeight,
+                                              text=info[3])   # 第五列宽80
+            passenger_info_canvas.create_line(393, row * rowHeight, 393, rowHeight * (row + 1), width=1,
+                                              fill=border_color)
+            passenger_info_canvas.create_text(150 / 2 + 393, rowHeight / 2 + 3 + row * rowHeight,
+                                              text=info[4])   # 第六列宽150
+            passenger_info_canvas.create_line(543, row * rowHeight, 543, rowHeight * (row + 1), width=1,
+                                              fill=border_color)
+            passenger_info_canvas.create_text((width - 543) / 2 + 543, rowHeight / 2 + 3 + row * rowHeight,
+                                              text=info[5])
             row += 1
 
         label = Label(master, text="注：系统将根据售出情况随机为您申请席位，暂不支持自选席位。", foreground='#3177BF')
@@ -595,14 +630,15 @@ class ConfirmOrderDialog(Toplevel):
     def validate(self):
         return 1 # override
 
+
 def main():
-    f = open ("./resources/order/passengerJson.txt", 'r', encoding="utf-8")
+    f = open("./resources/order/passengerJson.txt", 'r', encoding="utf-8")
     resultContent = f.read()
     f.close()
     jsonData = json.loads(resultContent)
     rand_image_url = "https://dynamic.12306.cn/otsweb/passCodeNewAction.do?module=login&rand=sjrand"
 
-    f = open ("./resources/order/confirm_passenger_init.html", 'r', encoding="utf-8")
+    f = open("./resources/order/confirm_passenger_init.html", 'r', encoding="utf-8")
     submitResult = f.read()
     f.close()
 
@@ -610,10 +646,14 @@ def main():
     parser.feed(submitResult)
 
     comfirmFrame = ConfirmPassengerFrame(contacts=jsonData['passengerJson'], rand_image_url=rand_image_url,
-        train_info=parser.get_train_info(), seats_info=parser.get_current_seats(),
-        seats_types=parser.get_seats_types(), ticket_types=parser.get_ticket_types(), card_types=parser.get_card_types())
-    comfirmFrame.submitButton.configure(command=lambda: ConfirmOrderDialog(comfirmFrame.root, '提交订单确认', parser.get_train_info(), comfirmFrame.getPassengerInfo()))
+                                         train_info=parser.get_train_info(), seats_info=parser.get_current_seats(),
+                                         seats_types=parser.get_seats_types(), ticket_types=parser.get_ticket_types(),
+                                         card_types=parser.get_card_types())
+    comfirmFrame.submitButton.configure(
+        command=lambda: ConfirmOrderDialog(comfirmFrame.root, '提交订单确认', parser.get_train_info(),
+                                           comfirmFrame.getPassengerInfo()))
     comfirmFrame.show()
+
 
 if __name__ == '__main__':
     main()

@@ -21,10 +21,9 @@ class LoginRandCodeParser(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         if tag == 'img' and ('id', 'img_rand_code') in attrs:
-            for x in attrs:
-                if x[0] == 'src':
-                    self.randCodeUrl = x[1]
-                    break
+            tag_attrs = dict(attrs)
+            if 'src' in tag_attrs and tag_attrs['src']:
+                self.randCodeUrl = tag_attrs['src']
 
     def getRandCodeURL(self):
         return self.randCodeUrl
@@ -115,37 +114,16 @@ def login(ht, username, password, randcode):
         # 用户判断当前网络环境是否可以登录,从得到的JSON数据{"loginRand":"172","randError":"Y"}中
         # 获取登录令牌loginRand的值
         # {"validateMessagesShowId":"_validatorMessage","status":true,"httpstatus":200,"data":"Y","messages":[],"validateMessages":{}}
-        json_str = ht.get(url="https://kyfw.12306.cn/otn/login/loginAysnSuggest", params=postDatas)
+        json_str = ht.post(url="https://kyfw.12306.cn/otn/login/loginAysnSuggest", params=postDatas)
         json_data = json.loads(json_str)
 
         # loginRand = 0
         # 检查用户是否可以登录
-        if (type(json_data) == dict and "data" in json_data and type(json_data["data"]) == dict and json_data["data"]["loginCheck"] != 'Y'):
+        if (type(json_data) == dict and "data" in json_data and type(json_data["data"]) == dict and "loginCheck" in json_data["data"] and json_data["data"]["loginCheck"] != 'Y'):
             print(json_str)
             print(json_data["messages"])
             print("当前网络繁忙不可访问!")
         else:
-            #loginRand = json_data["loginRand"]
-            # print("loginRand: " + str(loginRand))
-            # 接收用户输入的验证码
-            #randcode = input("验证码：")
-
-
-            # MTE2MTYwMQ===OTRhMDI4MzQ2ZjdjN2YyZQ==
-            # form_tk=null
-            # isClick=
-            # loginRand=792
-            # loginUser.user_name=
-            # myversion=undefined
-            # nameErrorFocus=
-            # passwordErrorFocus=
-            # randCode=s49f
-            # randErrorFocus=
-            # refundFlag=Y
-            # refundLogin=N
-            # user.password=
-
-            # print("logingRand %s, randcode: %s, username: %s, password: %s" % (loginRand, randcode, username, password))
             content = ht.post(url="https://kyfw.12306.cn/otn/login/userLogin", params=postDatas)
 
             infocenterParser = InfoCenterParser()
