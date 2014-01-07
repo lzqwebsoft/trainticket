@@ -221,7 +221,7 @@ class ResultTable(Canvas):
                 self.create_text(column*40+231+40/2, row*self.columnHeigth+self.columnHeigth/2, text=seatNumInfo, fill=seatColor)
             self.create_line(11*40+231, row*self.columnHeigth, 11*40+231, (row+1)*self.columnHeigth, width=1, fill=self.borderColor)
             orderButtonState = DISABLED
-            if trainDatas[row]["order_param"].strip()!="":
+            if trainDatas[row]["canWebBuy"] == 'Y':
                 orderButtonState = NORMAL
             if trainDatas[row]["buttonTextInfo"]=='预订':
                 orderButton = Button(self.parent, text = "预订", state=orderButtonState, command=lambda: orderHandleFuc(trainDatas[row]["order_param"]))

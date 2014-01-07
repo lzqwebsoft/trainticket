@@ -100,6 +100,7 @@ def getTrainList(queryResult):
             for (i, x) in enumerate(seat_codes):
                 train["seat_type" + str(i + 1)] = train_detail_info[x]
                 # 预定参数
+            train['canWebBuy'] = train_detail_info['canWebBuy']
             train["order_param"] = cvsData['secretStr']
             train['buttonTextInfo'] = cvsData['buttonTextInfo']
             trains.append(train)

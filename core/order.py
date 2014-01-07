@@ -44,6 +44,7 @@ class ParserConfirmPassengerInitPage(HTMLParser):
             train_info_str = collects[0]
             if train_info_str:
                 self.ticketInfoForPassengerForm = json.loads(train_info_str.replace("'", '"'))
+                self._parse_train_info()
 
         order_request_re = re.compile(r'var orderRequestDTO=(\{.+\})?;')
         if orderInitHtml and order_request_re.search(orderInitHtml):
@@ -53,20 +54,17 @@ class ParserConfirmPassengerInitPage(HTMLParser):
                 self.order_request_params = json.loads(train_info_str.replace("'", '"'))
 
         self.train_info_flag = False
+        self.train_info_str = ''
 
 
     def handle_starttag(self, tag, attrs):
         attrs_dict = dict(attrs)
         if tag == 'img' and ('id', 'img_rand_code') in attrs:
             self.img_rand_code_url = attrs_dict['src']
-        if tag == 'div' and ('id', 'check_ticket_tit_id') in attrs and ('class', "info2") in attrs:
-            self.train_info_flag = True
 
     def handle_data(self, data):
-        if self.train_info_flag:
-            train_info_str = re.sub('<strong\w*>', ',', data)
-            train_info_str = re.sub('</strong>', '', train_info_str)
-            self.train_info = train_info_str.split(',').append('')
+        if self.train_info_flag and data:
+            self.train_info_str += data.strip()
 
     def handle_endtag(self, tag):
         if tag == 'div':
@@ -80,6 +78,30 @@ class ParserConfirmPassengerInitPage(HTMLParser):
 
     def get_ticketInfoForPassengerForm(self):
         return self.ticketInfoForPassengerForm
+
+
+    # 由页面参数获取列车信息
+    def _parse_train_info(self):
+        av = self.ticketInfoForPassengerForm['queryLeftNewDetailDTO']
+        aw = self.ticketInfoForPassengerForm['queryLeftTicketRequestDTO']
+        train_date = time.strptime(aw['train_date'], '%Y%m%d')
+        date = time.strftime('%Y-%m-%d', train_date)
+        weeks_dict = ('周日', "周一", "周二", "周三", '周四', '周五', '周六')
+        week = weeks_dict[int(time.strftime('%w', train_date))]
+        station_train_code = av['station_train_code']
+        # train_headers = aw['train_headers']
+        lishi = aw['lishi']
+        from_station_name = av['from_station_name']
+        start_time = av['start_time'][:2] + ":" + av['start_time'][2:]
+        to_station_name = av['to_station_name']
+        arrive_time = av['arrive_time'][:2] + ":" + av['arrive_time'][2:]
+        self.train_info = (
+            "%s（%s）" % (date, week),
+            "%s次" % station_train_code,
+            "%s站 （%s）开" % (from_station_name, start_time),
+            "%s站 （%s）到" % (to_station_name, arrive_time),
+            "历时 （%s）" % lishi
+        )
 
     """
     def get_current_seats(self):
@@ -140,6 +162,7 @@ def submitOrderRequest(ht, selectStr=None, queryParams={}):
         if checkusermdId != 'undefined':
             submitParams.append(('_json_att', checkusermdId))
 
+        print(submitParams)
         # 请求预定操作，执行后页面会重定向
         submitResult = ht.post(url=submitUrl, params=submitParams)
         json_data = json.loads(submitResult)

@@ -97,7 +97,7 @@ class ConfirmPassengerFrame:
 
         self.allCustomerFileds = []
         # 乘客输入框数据
-        self.seats_types = seats_types
+        # self.seats_types = seats_types
         self.ticket_types = ticket_types
         self.card_types = card_types
 
