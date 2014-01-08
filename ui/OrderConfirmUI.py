@@ -375,14 +375,6 @@ class CustomerInfoContent(Frame):
         self.deleteOparetorLabel = Label(self, text="删除", width=4, font=('黑体', 11, 'underline'), foreground='blue')
         self.deleteOparetorLabel.grid(row=0, column=7, padx=5)
 
-        '''
-        <option value="1">二代身份证</option>
-        <option value="2">一代身份证</option>
-        <option value="C">港澳通行证</option>
-        <option value="G">台湾通行证</option>
-        <option value="B">护照</option>
-        '''
-
     def udpateNoLabelText(self, index):
         self.index = index
         self.noLabel.configure(text="第%d位" % index)
@@ -442,7 +434,7 @@ class CustomerInfoContent(Frame):
             if text == seat_type:
                 params['passenger_%d_seat' % self.index] = value
                 break
-                # 得到选中的票类
+        # 得到选中的票类
         params['passenger_%d_ticket' % self.index] = ''
         ticket_type = self.customerTypeListBox.get()
         ticket_type = ticket_type.strip()
@@ -450,7 +442,7 @@ class CustomerInfoContent(Frame):
             if ticket_type == text:
                 params['passenger_%d_ticket' % self.index] = value
                 break
-                # 得到设置的用户名
+        # 得到设置的用户名
         params['passenger_%d_name' % self.index] = self.getCustomerName()
         # 得到证件类型
         params['passenger_%d_cardtype' % self.index] = ''
@@ -460,7 +452,7 @@ class CustomerInfoContent(Frame):
             if card_type == text:
                 params['passenger_%d_cardtype' % self.index] = value
                 break
-                # 得到证件号
+        # 得到证件号
         params['passenger_%d_cardno' % self.index] = self.cardNo.get()
         # 手机号
         params['passenger_%d_mobileno' % self.index] = self.cellphone.get()

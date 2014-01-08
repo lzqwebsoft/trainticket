@@ -100,17 +100,8 @@ class AccessTrainOrderNetWork:
                 trainInfo = self.parser.get_train_info()
                 # 验证码地址
                 img_rand_code_url = self.parser.get_img_code_url()
-                # 订单选坐参数
+                # 订单选座参数
                 passenger_params = self.parser.get_ticketInfoForPassengerForm()
-
-                # 席别信息
-                # seats_info = self.parser.get_current_seats()
-                # 席别下拉框
-                # seats_types = self.parser.get_seats_types()
-                # 票种类型
-                # ticket_types = self.parser.get_ticket_types()
-                # 证件类型
-                # card_types = self.parser.get_card_types()
                 # 判断得到的数据是否合法
                 if img_rand_code_url and trainInfo and contacts and passenger_params:
                     self.queryFrame.quit()      # 注销查询窗体
@@ -142,57 +133,68 @@ class AccessTrainOrderNetWork:
     # 订单提交回调
     def submitOrderCallBack(self):
         # 整合POST上传参数
-        hidden_params = self.parser.get_hidden_params()
+        # hidden_params = self.parser.get_hidden_params()
         passenger_info = self.comfirmFrame.getAllPassengerParams()
         count = self.comfirmFrame.getCustomerCount()
         self.orderParams = []
+
+        # 订单提交参数
+        order_request_params = self.parser.get_order_request_params()
+
+        passengerTicketStr = ''
+        oldPassengersStr = ''
+        oldPassengers = []
+        passengerTickets = []
         for i in range(count):
-            if i == 0:
-                hidden_params['orderRequest.reserve_flag'] = 'A'
-                hidden_params['oldPassengers'] = passenger_info['passenger_1_name'] + "," + passenger_info[
-                    'passenger_1_cardtype'] + "," + passenger_info['passenger_1_cardno']
-                hidden_params['passengerTickets'] = passenger_info['passenger_1_seat'] + ",0," + passenger_info[
-                    'passenger_1_ticket'] + "," + passenger_info['passenger_1_name'] + "," + passenger_info[
-                                                        'passenger_1_cardtype'] + "," + passenger_info[
-                                                        'passenger_1_cardno'] + "," + passenger_info[
-                                                        'passenger_1_mobileno'] + ",Y"
-                self.orderParams = list(hidden_params.items())
-                self.orderParams.extend(list(passenger_info.items()))
-            else:
-                oldPassengers = passenger_info['passenger_' + str(i + 1) + '_name'] + "," + passenger_info[
-                    'passenger_' + str(i + 1) + '_cardtype'] + "," + passenger_info[
-                                    'passenger_' + str(i + 1) + '_cardno']
-                passengerTickets = passenger_info['passenger_' + str(i + 1) + '_seat'] + ",0," + passenger_info[
-                    'passenger_' + str(i + 1) + '_ticket'] + "," + passenger_info[
-                                       'passenger_' + str(i + 1) + '_name'] + "," + passenger_info[
-                                       'passenger_' + str(i + 1) + '_cardtype'] + "," + passenger_info[
-                                       'passenger_' + str(i + 1) + '_cardno'] + "," + passenger_info[
-                                       'passenger_' + str(i + 1) + '_mobileno'] + ",Y"
-                self.orderParams.append(('oldPassengers', oldPassengers))
-                self.orderParams.append(('passengerTickets', passengerTickets))
-        rand = self.comfirmFrame.getRandCode()
+            passengerTickets.append(passenger_info['passenger_' + str(i + 1) + '_seat'] + ",0," + passenger_info[
+                'passenger_' + str(i + 1) + '_ticket'] + "," + passenger_info[
+                                        'passenger_' + str(i + 1) + '_name'] + "," + passenger_info[
+                                        'passenger_' + str(i + 1) + '_cardtype'] + "," + passenger_info[
+                                        'passenger_' + str(i + 1) + '_cardno'] + "," + passenger_info[
+                                        'passenger_' + str(i + 1) + '_mobileno'] + ",Y")
+            # 这里最后一位暂时全部设定为成年人
+            # adult: "1",
+            # child: "2",
+            # student: "3",
+            # disability: "4"
+            oldPassengers.append(passenger_info['passenger_' + str(i + 1) + '_name'] + "," + passenger_info[
+                'passenger_' + str(i + 1) + '_cardtype'] + "," + passenger_info[
+                                     'passenger_' + str(i + 1) + '_cardno'] + "," + '1')
+
+        passengerTicketStr = "_".join(passengerTickets)
+        oldPassengersStr = "_".join(oldPassengers) + "_"
+        image_code = self.comfirmFrame.getRandCode()
+        image_code_rand = self.parser.get_img_code_rand()
         # ===================DEBUG=================
         # f = open('post_params.txt', 'w')
         # f.write(str(self.orderParams))
         # f.close()
         # =========================================
-        # 检查参数的合法性
-        checkResult = order.checkOrderInfo(self.ht, params=self.orderParams, rand=rand)
+        # 检查用户输入验证码的合法性
+        checkResult = order.checkOrderImgCode(self.ht, rand=image_code_rand, img_code=image_code, token = self.parser.globalRepeatSubmitToken)
         if checkResult:
-            # 参数合法，则显示车票预定对话框
-            # 排队提示对话框
-            seat_type = passenger_info['passenger_1_seat']
-            queueCounParams = [
-                ('train_date', hidden_params['orderRequest.train_date']),
-                ('train_no', hidden_params['orderRequest.train_no']),
-                ('station', hidden_params['orderRequest.station_train_code']),
-                ('seat', seat_type),
-                ('from', hidden_params['orderRequest.from_station_telecode']),
-                ('to', hidden_params['orderRequest.to_station_telecode']),
-                ('ticket', hidden_params['leftTicketStr'])]
-            queue_note = order.getQueueCount(self.ht, queueCounParams, seat_type)
-            OrderConfirmUI.ConfirmOrderDialog(self.comfirmFrame.root, queue_note, self.parser.get_train_info(),
-                                              self.comfirmFrame.getPassengerInfo(), self.comfirmOrderSubmitCallBack)
+            # 检证用户提交的乘客信息的合法性
+            checkResult = order.checkOrderInfo(self.ht, randCode=image_code, passengerTicketStr=passengerTicketStr,
+                                               oldPassengersStr=oldPassengersStr, tour_flag='dc', token = self.parser.globalRepeatSubmitToken)
+            if checkResult:
+                # 参数合法，则显示车票预定对话框
+                # 排队提示对话框
+                seat_type = passenger_info['passenger_1_seat']
+                queueCounParams = [
+                    ('train_date', str(time.ctime(int(order_request_params['train_date']['time'])))),
+                    ('train_no', order_request_params['train_no']),
+                    ('stationTrainCode', order_request_params['station_train_code']),
+                    ('seatType', seat_type),
+                    ('fromStationTelecode', order_request_params['from_station_telecode']),
+                    ('toStationTelecode', order_request_params['to_station_telecode']),
+                    ('leftTicket', order_request_params['leftTicketStr'])
+                    ('purpose_codes', 'ADULT'),
+                    ('isCheckOrderInfo', checkResult['isCheckOrderInfo']),
+                    ('REPEAT_SUBMIT_TOKEN', self.parser.globalRepeatSubmitToken)
+                ]
+                queue_note = order.getQueueCount(self.ht, queueCounParams, seat_type)
+                OrderConfirmUI.ConfirmOrderDialog(self.comfirmFrame.root, queue_note, self.parser.get_train_info(),
+                                                  self.comfirmFrame.getPassengerInfo(), self.comfirmOrderSubmitCallBack)
 
     # 用户点击提交订单确认对话框的确认按钮时回调
     def comfirmOrderSubmitCallBack(self):

@@ -33,9 +33,10 @@ class ParserConfirmPassengerInitPage(HTMLParser):
         self.orderInitHtml = orderInitHtml
 
         self.train_info = []                       # 当前列车信息
-        self.order_request_params = {}
+        self.order_request_params = {}             # 订单提交时的参数
         self.current_seats = {}                    # 席别信息
         self.img_rand_code_url = ''                # 图片验证码URL
+        self.img_rand_code_rand = ''               # 图片验证码随机数
         self.ticketInfoForPassengerForm = {}  # 初始化当前页面参数
 
         train_info_re = re.compile(r'var ticketInfoForPassengerForm=(\{.+\})?;')
@@ -56,11 +57,20 @@ class ParserConfirmPassengerInitPage(HTMLParser):
         self.train_info_flag = False
         self.train_info_str = ''
 
+        self.globalRepeatSubmitToken = ''
+        token_re = re.compile(r'var globalRepeatSubmitToken[ ]*?=[ ]*?([\"\'])(.+)?\1;')
+        if orderInitHtml and token_re.search(orderInitHtml):
+            collects = token_re.findall(orderInitHtml)
+            self.globalRepeatSubmitToken = collects[0][1] if collects and len(collects) > 0 else ''
 
     def handle_starttag(self, tag, attrs):
         attrs_dict = dict(attrs)
         if tag == 'img' and ('id', 'img_rand_code') in attrs:
             self.img_rand_code_url = attrs_dict['src']
+            if self.img_rand_code_url and self.img_rand_code_url.strip():
+                img_code_params = urllib.parse.parse_qs(self.img_rand_code_url)
+                if 'rand' in img_code_params:
+                    self.img_rand_code_rand = img_code_params['rand']
 
     def handle_data(self, data):
         if self.train_info_flag and data:
@@ -73,12 +83,11 @@ class ParserConfirmPassengerInitPage(HTMLParser):
     def get_train_info(self):
         return self.train_info
 
-    def get_hidden_params(self):
+    def get_order_request_params(self):
         return self.order_request_params
 
     def get_ticketInfoForPassengerForm(self):
         return self.ticketInfoForPassengerForm
-
 
     # 由页面参数获取列车信息
     def _parse_train_info(self):
@@ -103,25 +112,11 @@ class ParserConfirmPassengerInitPage(HTMLParser):
             "历时 （%s）" % lishi
         )
 
-    """
-    def get_current_seats(self):
-        return self.current_seats
-
-    def get_seats_types(self):
-        return self.seats_types
-
-    def get_ticket_types(self):
-        return self.ticket_types
-
-    def get_card_types(self):
-        return self.card_types
-
-    def get_error_message(self):
-        return self.error_message
-    """
-
     def get_img_code_url(self):
         return "https://kyfw.12306.cn" + self.img_rand_code_url
+
+    def get_img_code_rand(self):
+        return self.img_rand_code_rand
 
 
 # 提交用户预订请求，得到提交后的JSON
@@ -218,43 +213,83 @@ def getInfoMessage(submitResult=''):
         message = collects[0]
     return message
 
-# 模拟:submit_form_confirm，用于检测乘客输入值的正确性与否
-# JS URL: https://dynamic.12306.cn/otsweb/js/order/save_passenger_info.js
 # POST提交至：https://kyfw.12306.cn/otn/leftTicket/submitOrderRequest
-# rand 为输入的验证码
+# rand 为输入的验证码令牌
 # https://kyfw.12306.cn/otn/passcodeNew/checkRandCodeAnsyn
-def checkOrderInfo(ht, params=None, rand=""):
-    if not params or len(params) <= 0:
-        print("参数不能为空")
+def checkOrderImgCode(ht, img_code='', rand="", token = ''):
+    if not img_code:
+        print("订单验证码不能为空")
         return False
 
-    checked_result_json_str = ht.post(url="https://kyfw.12306.cn/otn/leftTicket/submitOrderRequest", params=params)
+    params ={
+        'rand': rand,
+        'randCode': img_code,
+        'REPEAT_SUBMIT_TOKEN':token
+    }
+    checked_result_json_str = ht.post(url="https://kyfw.12306.cn/otn/passcodeNew/checkRandCodeAnsyn", params=params)
     checked_result_json = json.loads(checked_result_json_str)
-    if 'errMsg' in checked_result_json and 'Y' != checked_result_json['errMsg']:
-        print(checked_result_json['errMsg'])
-        return False
-    elif 'checkHuimd' in checked_result_json and 'N' == checked_result_json['checkHuimd']:
-        # 对不起，由于您取消次数过多，今日将不能继续受理您的订票请求！
-        print(checked_result_json['msg'])
-        return False
-    elif 'check608' in checked_result_json and 'N' == checked_result_json['check608']:
-        # 本车为实名制列车，实行一日一车一证一票制！
-        print(checked_result_json['msg'])
-        return False
-    else:
+    if 'status' in checked_result_json and checked_result_json['status'] and 'data' in checked_result_json and checked_result_json['data']!='N':
         return True
+    else:
+        if 'messages' in checked_result_json and checked_result_json['messages']:
+            print(checked_result_json['messages'])
+        else:
+            print(checked_result_json_str)
+            print('订单提交验证码输入有误')
+        return False
+
+# 模拟订单提交，用于检测乘客输入值的正确性与否
+def checkOrderInfo(ht, randCode='', passengerTicketStr='', oldPassengersStr='', tour_flag='dc', token = ''):
+    check_info = {}
+    if passengerTicketStr and oldPassengersStr:
+        params = {
+            'cancel_flag': 2,
+            'bed_level_order_num': '000000000000000000000000000000',
+            'randCode': randCode,
+            'passengerTicketStr': passengerTicketStr,
+            'oldPassengerStr': oldPassengersStr,
+            'tour_flag': tour_flag,
+            'REPEAT_SUBMIT_TOKEN':token
+        }
+        check_result = ht.post(url='https://kyfw.12306.cn/otn/confirmPassenger/checkOrderInfo', params=params)
+        check_result_json = json.loads(check_result)
+        # {"validateMessagesShowId":"_validatorMessage","status":true,"httpstatus":200,"data":{"submitStatus":true},"messages":[],"validateMessages":{}}
+        if 'status' in check_result_json and check_result_json['status']:
+            submit_data = check_result_json['data'] if 'data' in check_result_json else {}
+            if  'submitStatus' in submit_data and submit_data['submitStatus']:
+                if 'get608Msg' in submit_data and submit_data['get608Msg']:
+                    print('警告: %s' % submit_data['get608Msg'])
+                if 'isCheckOrderInfo' in submit_data and 'doneHMD' in submit_data:
+                    check_info['isCheckOrderInfo'] = submit_data['isCheckOrderInfo']
+                    check_info['doneHMD'] = submit_data['doneHMD']
+            else:
+                if 'errMsg' in submit_data and submit_data['errMsg']:
+                    print(submit_data['errMsg'])
+                else:
+                    print('出票失败!')
+        else:
+            if 'messages' in check_result_json and check_result_json['messages']:
+                print(check_result_json['messages'])
+            else:
+                print(check_result)
+                print('订单信息输入有误')
+    else:
+        print('输入的乘客信息不能为空')
+    return check_info
 
 # 模拟查询当前的列车排队人数的方法
 # 返回信息组成的提示字符串
 # params:
-# train_date=2013-11-13
-# train_no=550000K35190
-# station=K351
-# seat=1
-# from=SNH
-# to=WCN
-# ticket=1014853031404155000010148500003026350000
-# GET提交: https://dynamic.12306.cn/otsweb/order/confirmPassengerAction.do?method=getQueueCount
+# train_date: new Date(orderRequestDTO.train_date.time).toString(),  # 列车日期
+# train_no: orderRequestDTO.train_no,                           # 列车号
+# stationTrainCode: orderRequestDTO.station_train_code,
+# seatType: limit_tickets[0].seat_type,                         # 座位类型
+# fromStationTelecode: orderRequestDTO.from_station_telecode,   # 发站编号
+# toStationTelecode: orderRequestDTO.to_station_telecode,       # 到站编号
+# leftTicket: ticketInfoForPassengerForm.queryLeftTicketRequestDTO.ypInfoDetail,
+# purpose_codes: n,      # 默认取ADULT,表成人
+# isCheckOrderInfo: m    # 检证乘客信息返回的令牌
+# GET提交: https://kyfw.12306.cn/otn/confirmPassenger/getQueueCount
 # 结果：{"countT":0,"count":0,"ticket":"1*****30314*****00001*****00003*****0000","op_1":false,"op_2":false}
 def getQueueCount(ht, params=None, seat_type=None):
     if not params or len(params) <= 0:
@@ -262,7 +297,7 @@ def getQueueCount(ht, params=None, seat_type=None):
         return ''
     submitParams = [('method', 'getQueueCount')]
     submitParams.extend(params)
-    json_str = ht.get(url="https://dynamic.12306.cn/otsweb/order/confirmPassengerAction.do", params=submitParams)
+    json_str = ht.post(url="https://kyfw.12306.cn/otn/confirmPassenger/getQueueCount", params=submitParams)
     json_data = json.loads(json_str)
     if 'ticket' not in json_data:
         print("获取排队人数失败")
@@ -273,7 +308,7 @@ def getQueueCount(ht, params=None, seat_type=None):
     else:
         # 这里放开弹出窗体的确定按钮，充许预定
         if 'countT' in json_data and json_data['countT'] > 0:
-            queue_note += "目前排队人数" + str(data.countT) + "人，"
+            queue_note += "目前排队人数" + str(json_data['countT']) + "人，"
         queue_note += "特此提醒。"
     queue_note += "\n请确认订单信息是否正确，如正确请点击“确定”，系统将为您随机分配席位。"
     return queue_note
