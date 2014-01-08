@@ -96,10 +96,14 @@ class ConfirmPassengerFrame:
         customerTitle.pack(fill=X)
 
         self.allCustomerFileds = []
+        self.seats_types = {}
+        self.ticket_types = {}
+        self.card_types = {}
         # 乘客输入框数据
-        # self.seats_types = seats_types
-        self.ticket_types = ticket_types
-        self.card_types = card_types
+        if 'limitBuySeatTicketDTO' in passenger_params and 'seat_type_codes' in passenger_params['limitBuySeatTicketDTO']:
+            self.seats_types = {seat_type_codes['id']:seat_type_codes['value'] for seat_type_codes in passenger_params['limitBuySeatTicketDTO']['seat_type_codes']}
+            self.ticket_types = {ticket_type_codes['id']:ticket_type_codes['value'] for ticket_type_codes in passenger_params['limitBuySeatTicketDTO']['ticket_type_codes']}
+            self.card_types = {cardTypes['id']:cardTypes['value'] for cardTypes in  passenger_params['cardTypes']}
 
         self.customerTable = Frame(customerPanel)
         self.customerTable.pack(fill=X)
@@ -125,7 +129,7 @@ class ConfirmPassengerFrame:
                     image_bytes = urlopen(self.rand_image_url).read()
                     break
                 except socket.timeout:
-                    print('获取验证码超时：%s\r\n重新获取.' % (self.url))
+                    print('获取验证码超时：%s\r\n重新获取.' % (self.rand_image_url))
                     continue
             data_stream = io.BytesIO(image_bytes)
             self.pil_image = Image.open(data_stream)
@@ -201,7 +205,7 @@ class ConfirmPassengerFrame:
                     image_bytes = urlopen(url).read()
                     break
                 except socket.timeout:
-                    print('获取验证码超时：%s\r\n重新获取.' % (self.url))
+                    print('获取验证码超时：%s\r\n重新获取.' % (self.rand_image_url))
                     continue
             data_stream = io.BytesIO(image_bytes)
             self.pil_image = Image.open(data_stream)

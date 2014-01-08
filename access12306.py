@@ -86,8 +86,8 @@ class AccessTrainOrderNetWork:
         self.queryFrame.resultTable.updateResult(trainDatas=trains, orderHandleFuc=self.orderTrainsCallBack)
 
     # 处理列车预定按钮回调
-    def orderTrainsCallBack(self, selectStr=''):
-        if selectStr.strip():
+    def orderTrainsCallBack(self, selectStr='', row=0):
+        if selectStr:
             from_station = self.queryFrame.fromStation.get()
             # 提交预定，获取初始化乘客确认页面内容
             submitResult = order.submitOrderRequest(self.ht, selectStr, queryParams=self.currentSelectedParams)

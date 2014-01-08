@@ -224,10 +224,10 @@ class ResultTable(Canvas):
             if trainDatas[row]["canWebBuy"] == 'Y':
                 orderButtonState = NORMAL
             if trainDatas[row]["buttonTextInfo"]=='预订':
-                orderButton = Button(self.parent, text = "预订", state=orderButtonState, command=lambda: orderHandleFuc(trainDatas[row]["order_param"]))
+                orderButton = Button(self.parent, text = "预订", state=orderButtonState, command=lambda order_param=trainDatas[row]["order_param"]: orderHandleFuc(order_param))
                 self.create_window(self.width-55, row*self.columnHeigth+(self.columnHeigth-25)/2, anchor=NW, window=orderButton, height=25, width=50)
             else:
-                self.create_text(self.width-55/2, row*self.columnHeigth+self.columnHeigth/2, text=trainDatas[row]["buttonTextInfo"], fill="black")
+                self.create_text(self.width-60/2, row*self.columnHeigth+self.columnHeigth/2, text=trainDatas[row]["buttonTextInfo"], fill="black")
             self.create_line(self.width-1, row*self.columnHeigth, self.width-1, (row+1)*self.columnHeigth, width=1, fill=self.borderColor)
 
             self.create_line(0, row*self.columnHeigth, self.width, row*self.columnHeigth, width=1, fill=self.borderColor)

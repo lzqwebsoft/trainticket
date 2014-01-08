@@ -162,7 +162,6 @@ def submitOrderRequest(ht, selectStr=None, queryParams={}):
         if checkusermdId != 'undefined':
             submitParams.append(('_json_att', checkusermdId))
 
-        print(submitParams)
         # 请求预定操作，执行后页面会重定向
         submitResult = ht.post(url=submitUrl, params=submitParams)
         json_data = json.loads(submitResult)
@@ -223,10 +222,12 @@ def getInfoMessage(submitResult=''):
 # JS URL: https://dynamic.12306.cn/otsweb/js/order/save_passenger_info.js
 # POST提交至：https://kyfw.12306.cn/otn/leftTicket/submitOrderRequest
 # rand 为输入的验证码
+# https://kyfw.12306.cn/otn/passcodeNew/checkRandCodeAnsyn
 def checkOrderInfo(ht, params=None, rand=""):
     if not params or len(params) <= 0:
         print("参数不能为空")
         return False
+
     checked_result_json_str = ht.post(url="https://kyfw.12306.cn/otn/leftTicket/submitOrderRequest", params=params)
     checked_result_json = json.loads(checked_result_json_str)
     if 'errMsg' in checked_result_json and 'Y' != checked_result_json['errMsg']:

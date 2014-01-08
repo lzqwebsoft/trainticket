@@ -79,7 +79,7 @@ def logQuery(ht, queryParams):
 # 解析查询后的结果集,得到所有列车列表数据
 def getTrainList(queryResult):
     trains = []
-    if len(queryResult) > 0:
+    if len(queryResult):
         for cvsData in queryResult:
             train = {}
             train_detail_info = cvsData['queryLeftNewDTO']
