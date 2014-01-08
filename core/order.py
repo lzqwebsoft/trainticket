@@ -52,7 +52,7 @@ class ParserConfirmPassengerInitPage(HTMLParser):
             collects = order_request_re.findall(orderInitHtml)
             order_request_str = collects[0]
             if order_request_str:
-                self.order_request_params = json.loads(train_info_str.replace("'", '"'))
+                self.order_request_params = json.loads(order_request_str.replace("'", '"'))
 
         self.train_info_flag = False
         self.train_info_str = ''
@@ -70,7 +70,7 @@ class ParserConfirmPassengerInitPage(HTMLParser):
             if self.img_rand_code_url and self.img_rand_code_url.strip():
                 img_code_params = urllib.parse.parse_qs(self.img_rand_code_url)
                 if 'rand' in img_code_params:
-                    self.img_rand_code_rand = img_code_params['rand']
+                    self.img_rand_code_rand = img_code_params['rand'][0] if img_code_params['rand'] else ''
 
     def handle_data(self, data):
         if self.train_info_flag and data:
@@ -259,9 +259,8 @@ def checkOrderInfo(ht, randCode='', passengerTicketStr='', oldPassengersStr='', 
             if  'submitStatus' in submit_data and submit_data['submitStatus']:
                 if 'get608Msg' in submit_data and submit_data['get608Msg']:
                     print('警告: %s' % submit_data['get608Msg'])
-                if 'isCheckOrderInfo' in submit_data and 'doneHMD' in submit_data:
-                    check_info['isCheckOrderInfo'] = submit_data['isCheckOrderInfo']
-                    check_info['doneHMD'] = submit_data['doneHMD']
+                check_info['isCheckOrderInfo'] = submit_data.get('isCheckOrderInfo', '')
+                check_info['doneHMD'] = submit_data.get('doneHMD', '')
             else:
                 if 'errMsg' in submit_data and submit_data['errMsg']:
                     print(submit_data['errMsg'])
@@ -299,18 +298,30 @@ def getQueueCount(ht, params=None, seat_type=None):
     submitParams.extend(params)
     json_str = ht.post(url="https://kyfw.12306.cn/otn/confirmPassenger/getQueueCount", params=submitParams)
     json_data = json.loads(json_str)
-    if 'ticket' not in json_data:
-        print("获取排队人数失败")
-        return ''
-    queue_note = "尊敬的旅客，本次列车您选择的席别尚有余票" + getTicketCountDesc(json_data['ticket'], seat_type) + "，"
-    if 'op_2' in json_data and json_data['op_2']:
-        queue_note += "目前排队人数已经超过余票张数，请您选择其他席别或车次，特此提醒。"
+    queue_note = ''
+    if 'status' in json_data and json_data['status']:
+        json_data = json_data['data'] if 'data' in json_data else {}
+        if 'ticket' not in json_data:
+            print(json_str)
+            print("获取排队人数失败")
+            return ''
+        queue_note = "尊敬的旅客，本次列车您选择的席别尚有余票" + getTicketCountDesc(json_data['ticket'], seat_type) + "，"
+        if 'op_2' in json_data and json_data['op_2']:
+            queue_note += "目前排队人数已经超过余票张数，请您选择其他席别或车次，特此提醒。"
+        else:
+            # 这里放开弹出窗体的确定按钮，充许预定
+            if 'countT' in json_data and json_data['countT'] > 0:
+                queue_note += "目前排队人数" + str(json_data['countT']) + "人，"
+            queue_note += "特此提醒。"
+        queue_note += "\n请确认订单信息是否正确，如正确请点击“确定”，系统将为您随机分配席位。"
     else:
-        # 这里放开弹出窗体的确定按钮，充许预定
-        if 'countT' in json_data and json_data['countT'] > 0:
-            queue_note += "目前排队人数" + str(json_data['countT']) + "人，"
-        queue_note += "特此提醒。"
-    queue_note += "\n请确认订单信息是否正确，如正确请点击“确定”，系统将为您随机分配席位。"
+        if 'messages' in json_data and json_data['messages']:
+            print(json_data['messages'])
+            return ''
+        else:
+            print(json_str)
+            print("获取排队人数失败")
+            return ''
     return queue_note
 
 # 计算指定席别的余票数
@@ -342,31 +353,42 @@ def getTicketCountDesc(mark, seat_type):
 # 模拟点击订单的确定按钮实现提交,检查是否可以排队获取订单
 # 参数tourFlag为旅程形式
 def checkQueueOrder(ht, tourFlag, params=None):
-    # messagebox.showinfo("交易提示", "您也可点击 未完成订单，查看订单处理情况。")
-    url = 'https://dynamic.12306.cn/otsweb/order/'
+    url = 'https://kyfw.12306.cn/otn/'
     if tourFlag == 'dc':
         # 异步下单-单程
-        url += 'confirmPassengerAction.do?method=confirmSingleForQueue'
+        url += 'confirmPassenger/confirmSingleForQueue'
     elif tourFlag == 'wc':
         # 异步下单-往程
-        url += 'confirmPassengerAction.do?method=confirmPassengerInfoGoForQueue'
+        url += 'confirmPassenger/confirmGoForQueue'
     elif tourFlag == 'fc':
         # 异步下单-返程
-        url += 'confirmPassengerAction.do?method=confirmPassengerInfoBackForQueue'
+        url += 'confirmPassenger/confirmBackForQueue'
     elif tourFlag == 'gc':
         # 异步下单-改签
-        url += 'confirmPassengerResignAction.do?method=confirmPassengerInfoResignForQueue'
+        url += 'confirmPassenger/confirmResignForQueue'
     else:
         print("下单失败！旅程形式为" + tourFlag)
         return False
     print("正在处理，请稍候。")
     json_str = ht.post(url=url, params=params)
     json_data = json.loads(json_str)
-    if 'errMsg' in json_data and json_data['errMsg'] != 'Y':
-        print("出票失败，" + json_data['errMsg'] + "请重新选择。")
-        return False
+    if 'status' in json_data and json_data['status']:
+        json_data = json_data['data'] if 'data' in json_data else {}
+        if 'submitStatus' in json_data and json_data['submitStatus']:
+            return True
+        else:
+            if 'errMsg' in json_data and json_data['errMsg']:
+                print("出票失败，" + json_data['errMsg'] + "请重新选择。")
+            else:
+                print(json_str)
+                print('订票失败!很抱歉,请重试提交预订功能!')
     else:
-        return True
+        if 'messages' in json_data and json_data['messages']:
+            print('订票失败!'+ json_data['messages'])
+        else:
+            print(json_str)
+            print('订票失败!很抱歉,请重试提交预订功能!')
+    return False
 
 # 订单排队等待时间
 class OrderQueueWaitTime:
@@ -391,7 +413,7 @@ class OrderQueueWaitTime:
 
         if self.dispTime <= 0:
             self.isFinished = True
-            self.finishMethod(self.tourFlag, self.dispTime, self.waitObj);
+            self.finishMethod(self.tourFlag, self.dispTime, self.waitObj)
             return
 
         if self.dispTime == self.nextRequestTime:
@@ -415,24 +437,21 @@ class OrderQueueWaitTime:
         Timer(1.0, self.timerJob).start()
 
     def getWaitTime(self):
-        params = [('method', 'queryOrderWaitTime'), ('tourFlag', self.tourFlag)]
-        url = 'https://dynamic.12306.cn/otsweb/order/myOrderAction.do'
+        params = [('tourFlag', self.tourFlag)]
+        url = 'https://kyfw.12306.cn/otn/confirmPassenger/queryOrderWaitTime'
         json_str = self.ht.get(url=url, params=params)
-        if json_str and json_str.strip() != 0:
+        if json_str and json_str:
             json_data = json.loads(json_str)
-            self.waitObj = json_data
-            self.dispTime = json_data['waitTime']
+            json_data = json_data['data'] if 'data' in json_data else {}
+            if 'queryOrderWaitTimeStatus' in json_data and json_data['queryOrderWaitTimeStatus']:
+                self.waitObj = json_data
+                self.dispTime = json_data['waitTime']
 
-            flashWaitTime = int(json_data['waitTime'] / 1.5)
-            if flashWaitTime > 60:
-                flashWaitTime = 60
-            else:
-                flashWaitTime = flashWaitTime
-            nextTime = json_data['waitTime'] - flashWaitTime;
-            if nextTime <= 0:
-                self.nextRequestTime = 1
-            else:
-                self.nextRequestTime = nextTime
+                flashWaitTime = int(json_data['waitTime'] / 1.5)
+                flashWaitTime = 60 if flashWaitTime > 60 else flashWaitTime
+
+                nextTime = json_data['waitTime'] - flashWaitTime
+                self.nextRequestTime = 1 if nextTime <= 0 else nextTime
 
 
 def waitFunc(tourFlag, return_time, show_time):
@@ -446,32 +465,33 @@ def waitFunc(tourFlag, return_time, show_time):
 # 跳转-单程
 def finishMethod(tourFlag, time, returnObj, params=None):
     if time == -1:
-        action_url = "https://dynamic.12306.cn/otsweb/order/";
+        action_url = "https://kyfw.12306.cn/otn/"
         if tourFlag == 'dc':
             # 异步下单-单程
-            action_url = "confirmPassengerAction.do?method=payOrder&orderSequence_no=" + returnObj['orderId'];
+            action_url += "confirmPassenger/resultOrderForDcQueue"
         elif tourFlag == 'wc':
             # 异步下单-往程
-            action_url = "confirmPassengerAction.do?method=wcConfirm&orderSequence_no=" + returnObj['orderId']
+            action_url += "confirmPassenger/resultOrderForWcQueue"
         elif tourFlag == 'fc':
             # 异步下单-返程
-            action_url = "confirmPassengerAction.do?method=backPay&orderSequence_no=" + returnObj['orderId']
+            action_url += "confirmPassenger/resultOrderForFcQueue"
         elif tourFlag == 'gc':
             # 异步下单-改签
-            action_url = "confirmPassengerResignAction.do?method=resignPay&orderSequence_no=" + returnObj['orderId']
-            #ht.post(url=action_url, params=params)
+            action_url += "confirmPassenger/resultOrderForGcQueue"
+        orderId = returnObj['orderId'] if 'orderId' in returnObj else ''
+        #ht.post(url=action_url, params=params)
         # 处理订单提交成功操作
-        print('车票预定成功订单号为：%s，请立即打开浏览器登录12306，访问‘未完成订单’在45分钟内完成支付！' % returnObj['orderId'])
+        print('车票预定成功订单号为：%s，请立即打开浏览器登录12306，访问‘未完成订单’在45分钟内完成支付！' % orderId)
         pass
     else:
         procFail(time, returnObj)
 
 # 订单提交失败
 def procFail(flag, returnObj):
-    renewURL = "<a href='https://dynamic.12306.cn/otsweb/order/querySingleAction.do?method=init'>[重新购票]</a>"
-    my12306URL = "<a href='https://dynamic.12306.cn/loginAction.do?method=initForMy12306'>[我的12306]</a>"
+    renewURL = "<a href='https://kyfw.12306.cn/otn/initNoComplete'>[重新购票]</a>"
+    my12306URL = "<a href='https://kyfw.12306.cn/otn/index/initMy12306'>[我的12306]</a>"
     if flag == -1:
-        return;
+        return
     elif flag == -2:
         if returnObj['errorcode'] == 0:
             print("占座失败，原因:" + returnObj['msg'] + " 请访问" + my12306URL + ",办理其他业务.")

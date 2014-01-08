@@ -136,10 +136,10 @@ class AccessTrainOrderNetWork:
         # hidden_params = self.parser.get_hidden_params()
         passenger_info = self.comfirmFrame.getAllPassengerParams()
         count = self.comfirmFrame.getCustomerCount()
-        self.orderParams = []
 
-        # 订单提交参数
+        # 订单提交页面隐藏参数
         order_request_params = self.parser.get_order_request_params()
+        ticketInfoForPassengerForm = self.parser.get_ticketInfoForPassengerForm()
 
         passengerTicketStr = ''
         oldPassengersStr = ''
@@ -181,15 +181,26 @@ class AccessTrainOrderNetWork:
                 # 排队提示对话框
                 seat_type = passenger_info['passenger_1_seat']
                 queueCounParams = [
-                    ('train_date', str(time.ctime(int(order_request_params['train_date']['time'])))),
+                    ('train_date', str(time.ctime(order_request_params['train_date']['time']/1000))),
                     ('train_no', order_request_params['train_no']),
                     ('stationTrainCode', order_request_params['station_train_code']),
                     ('seatType', seat_type),
                     ('fromStationTelecode', order_request_params['from_station_telecode']),
                     ('toStationTelecode', order_request_params['to_station_telecode']),
-                    ('leftTicket', order_request_params['leftTicketStr'])
+                    ('leftTicket', ticketInfoForPassengerForm['queryLeftTicketRequestDTO']['ypInfoDetail']),
                     ('purpose_codes', 'ADULT'),
                     ('isCheckOrderInfo', checkResult['isCheckOrderInfo']),
+                    ('REPEAT_SUBMIT_TOKEN', self.parser.globalRepeatSubmitToken)
+                ]
+                # 订单提交自动出票参数
+                self.orderParams = [
+                    ('passengerTicketStr', passengerTicketStr),
+                    ('oldPassengerStr', oldPassengersStr),
+                    ('randCode', image_code),
+                    ('purpose_codes', ticketInfoForPassengerForm['purpose_codes']),
+                    ('key_check_isChange', ticketInfoForPassengerForm['key_check_isChange']),
+                    ('leftTicketStr', ticketInfoForPassengerForm['leftTicketStr']),
+                    ('train_location', ticketInfoForPassengerForm['train_location']),
                     ('REPEAT_SUBMIT_TOKEN', self.parser.globalRepeatSubmitToken)
                 ]
                 queue_note = order.getQueueCount(self.ht, queueCounParams, seat_type)
