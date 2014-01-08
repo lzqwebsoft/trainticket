@@ -13,20 +13,20 @@ except ImportError:
 
 # 更新城市编码列表数据
 def updateCityCode(ht):
-    allStationsJsStr = ht.get(url="https://kyfw.12306.cn/otn/resources/merged/station_name_js.js")
+    allStationsJsStr = ht.get(url="https://kyfw.12306.cn/otn/resources/js/framework/station_name.js")
     hasStationsRe = re.compile(r'var station_names', re.DOTALL)
-    collectStationsRe = re.compile(r'"(.+?)"', re.DOTALL)
+    collectStationsRe = re.compile(r'([\"\'])(.+?)\1', re.DOTALL)
     if allStationsJsStr.strip() != "" and hasStationsRe.search(allStationsJsStr):
         collects = collectStationsRe.findall(allStationsJsStr)
-        allStationsStr = collects[0]
-        collects = allStationsStr.split("@")
+        allStationsStr = collects[0][1] if collects and len(collects) > 0 else ''
+        collects = allStationsStr.split("@") if allStationsStr else []
         config = configparser.SafeConfigParser()
         config.read("config.ini")
         if not config.has_section("Stations"):
             config.add_section("Stations")
         stations = []
         for x in collects:
-            if x.strip() != '':
+            if x and x.strip():
                 titem = x.split('|')
                 # ['zzd', '郑州东', 'ZAF', 'zhengzhoudong', 'zzd', '2175']
                 config.set('Stations', titem[1], titem[2])
