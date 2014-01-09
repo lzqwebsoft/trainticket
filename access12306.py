@@ -45,8 +45,10 @@ class AccessTrainOrderNetWork:
                     self.randImage.quit()
                     # 更新城市编码表
                     query.updateCityCode(self.ht)
+                    # 获取默认的列车查询信息
+                    defaultQueryParams = query.getDefaultQueryParams()
                     # 启动列车查询窗体
-                    self.queryFrame = QueryTrainUI.QueryTrainFrame()
+                    self.queryFrame = QueryTrainUI.QueryTrainFrame(initQueryParams=defaultQueryParams)
                     self.queryFrame.selectButton.configure(command=self.queryTrainsCallBack)
                     self.queryFrame.show()
                 else:
@@ -126,7 +128,7 @@ class AccessTrainOrderNetWork:
         self.comfirmFrame.quit()
         self.comfirmFrame = None
         # 新建查询窗体
-        self.queryFrame = QueryTrainUI.QueryTrainFrame()
+        self.queryFrame = QueryTrainUI.QueryTrainFrame(initQueryParams=self.currentSelectedParams)
         self.queryFrame.selectButton.configure(command=self.queryTrainsCallBack)
         self.queryFrame.show()
 
@@ -171,17 +173,19 @@ class AccessTrainOrderNetWork:
         # f.close()
         # =========================================
         # 检查用户输入验证码的合法性
-        checkResult = order.checkOrderImgCode(self.ht, rand=image_code_rand, img_code=image_code, token = self.parser.globalRepeatSubmitToken)
+        checkResult = order.checkOrderImgCode(self.ht, rand=image_code_rand, img_code=image_code,
+                                              token=self.parser.globalRepeatSubmitToken)
         if checkResult:
             # 检证用户提交的乘客信息的合法性
             checkResult = order.checkOrderInfo(self.ht, randCode=image_code, passengerTicketStr=passengerTicketStr,
-                                               oldPassengersStr=oldPassengersStr, tour_flag='dc', token = self.parser.globalRepeatSubmitToken)
+                                               oldPassengersStr=oldPassengersStr, tour_flag='dc',
+                                               token=self.parser.globalRepeatSubmitToken)
             if checkResult:
                 # 参数合法，则显示车票预定对话框
                 # 排队提示对话框
                 seat_type = passenger_info['passenger_1_seat']
                 queueCounParams = [
-                    ('train_date', str(time.ctime(order_request_params['train_date']['time']/1000))),
+                    ('train_date', str(time.ctime(order_request_params['train_date']['time'] / 1000))),
                     ('train_no', order_request_params['train_no']),
                     ('stationTrainCode', order_request_params['station_train_code']),
                     ('seatType', seat_type),

@@ -82,6 +82,10 @@ class HttpTester:
             except socket.timeout:
                 print('GET请求超时：%s\r\n重新获取.' % (request_url))
                 continue
+            except urllib.error.URLError as e:
+                if isinstance(e.reason, socket.timeout):
+                    print('GET请求超时：%s\r\n重新获取.' % (request_url))
+                    continue
 
 
     def post(self, url, params={}, headers={}, charset='UTF-8'):
@@ -100,6 +104,10 @@ class HttpTester:
             except socket.timeout:
                 print('POST请求超时：%s\r\n重新获取.' % (url))
                 continue
+            except urllib.error.URLError as e:
+                if isinstance(e.reason, socket.timeout):
+                    print('POST请求超时：%s\r\n重新获取.' % (url))
+                    continue
 
     def download(self, url, savefile):
         '''下载文件或网页'''

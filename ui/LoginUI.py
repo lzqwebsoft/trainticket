@@ -4,6 +4,7 @@ import random
 from PIL import Image, ImageTk
 import tkinter as tk
 import socket
+import urllib.error
 from urllib.request import urlopen
 
 # 将网络中获取的验证码图片使用弹窗显示
@@ -21,7 +22,11 @@ class LoginFrame:
             except socket.timeout:
                 print('获取验证码超时：%s\r\n重新获取.' % (self.url))
                 continue
-                # internal data file
+            except urllib.error.URLError as e:
+                if isinstance(e.reason, socket.timeout):
+                    print('获取验证码超时：%s\r\n重新获取.' % (self.url))
+                    continue
+        # internal data file
         data_stream = io.BytesIO(image_bytes)
         # open as a PIL image object
         self.pil_image = Image.open(data_stream)
@@ -53,6 +58,10 @@ class LoginFrame:
             except socket.timeout:
                 print('获取验证码超时：%s\r\n重新获取.' % (self.url))
                 continue
+            except urllib.error.URLError as e:
+                if isinstance(e.reason, socket.timeout):
+                    print('获取验证码超时：%s\r\n重新获取.' % (self.url))
+                    continue
 
     # 显示URL地址指定图片
     def show(self):

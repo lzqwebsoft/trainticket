@@ -10,7 +10,7 @@ except ImportError:
     from tkinter.ttk import *
 
 class QueryTrainFrame:
-    def __init__(self):
+    def __init__(self, initQueryParams={}):
         self.root = Tk()
         self.root.title("列车查询")
 
@@ -23,16 +23,22 @@ class QueryTrainFrame:
         fromStationLabel = Label(conditionPanel, text="*出发地:")
         fromStationLabel.place(x = 10, y = 10, width=50, height=25)
         self.fromStation = Entry(conditionPanel)
+        default_from_station = initQueryParams.get('from_station', '')
+        self.fromStation.insert(0, default_from_station)
         self.fromStation.place(x = 70, y = 10, width=100, height=23)
 
         toStationLabel = Label(conditionPanel, text="*目的地:")
         toStationLabel.place(x = 180, y = 10, width=50, height=25)
         self.toStation = Entry(conditionPanel)
+        default_to_station = initQueryParams.get('to_station', '')
+        self.toStation.insert(0, default_to_station)
         self.toStation.place(x = 240, y = 10, width=100, height=23)
 
         trainDateLabel = Label(conditionPanel, text="*出发日期:")
         trainDateLabel.place(x = 360, y = 10, width=60, height=25)
         self.trainDate = Entry(conditionPanel)
+        default_train_date = initQueryParams.get('train_date', '')
+        self.trainDate.insert(0, default_train_date)
         self.trainDate.place(x = 430, y = 10, width=120, height=23)
 
         startDateLabel = Label(conditionPanel, text="出发时间:")

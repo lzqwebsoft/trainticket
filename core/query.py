@@ -11,6 +11,20 @@ except ImportError:
     # Python3
     import configparser
 
+# 获取默认的列车查询信息
+def getDefaultQueryParams():
+    defaultQueryParams = {}
+    config = configparser.SafeConfigParser()
+    config.read("config.ini")
+    try:
+        defaultQueryParams['from_station'] = config.get("DefaultQueryInfo", "from_station")
+        defaultQueryParams['to_station'] = config.get("DefaultQueryInfo", "to_station")
+        defaultQueryParams['train_date'] = config.get("DefaultQueryInfo", "train_date")
+    except configparser.NoSectionError:
+        print("请设置默认的列车信息在config.ini文件")
+
+    return defaultQueryParams
+
 # 更新城市编码列表数据
 def updateCityCode(ht):
     allStationsJsStr = ht.get(url="https://kyfw.12306.cn/otn/resources/js/framework/station_name.js")

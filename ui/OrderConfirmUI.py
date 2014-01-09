@@ -3,7 +3,7 @@ import json
 import io
 import random
 import socket
-
+import urllib.error
 try:
     # Python2
     from Tkinter import *
@@ -131,6 +131,10 @@ class ConfirmPassengerFrame:
                 except socket.timeout:
                     print('获取验证码超时：%s\r\n重新获取.' % (self.rand_image_url))
                     continue
+                except urllib.error.URLError as e:
+                    if isinstance(e.reason, socket.timeout):
+                        print('获取验证码超时：%s\r\n重新获取.' % (self.rand_image_url))
+                        continue
             data_stream = io.BytesIO(image_bytes)
             self.pil_image = Image.open(data_stream)
             self.tk_image = ImageTk.PhotoImage(self.pil_image)
@@ -207,6 +211,10 @@ class ConfirmPassengerFrame:
                 except socket.timeout:
                     print('获取验证码超时：%s\r\n重新获取.' % (self.rand_image_url))
                     continue
+                except urllib.error.URLError as e:
+                    if isinstance(e.reason, socket.timeout):
+                        print('获取验证码超时：%s\r\n重新获取.' % (self.rand_image_url))
+                        continue
             data_stream = io.BytesIO(image_bytes)
             self.pil_image = Image.open(data_stream)
             self.tk_image = ImageTk.PhotoImage(self.pil_image)
