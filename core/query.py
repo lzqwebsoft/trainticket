@@ -101,7 +101,7 @@ def getTrainList(queryResult):
             train["no"] = train_detail_info['station_train_code']
             train["no_param"] = train_detail_info['train_no']
             # 发站
-            train["form_station"] = train_detail_info['start_station_name']
+            train["form_station"] = train_detail_info['from_station_name']
             train["start_time"] = train_detail_info['start_time']
             # 到站
             train["to_station"] = train_detail_info['to_station_name']
