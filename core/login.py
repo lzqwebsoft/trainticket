@@ -1,40 +1,34 @@
 # coding: utf8
 import json
-import threading
+import configparser
 import urllib, urllib.request
-from common.httpaccess import HttpTester
-
-try:
-    # Python2
-    import ConfigParser as configparser
-    from HTMLParser import HTMLParser
-except ImportError:
-    # Python3
-    import configparser
-    from html.parser import HTMLParser
+from html.parser import HTMLParser
 
 # 读取URL获得验证码的路径HTML解析类
 class LoginRandCodeParser(HTMLParser):
     def __init__(self):
         self.randCodeUrl = ""
+        self.rand = ''
         HTMLParser.__init__(self)
 
     def handle_starttag(self, tag, attrs):
         if tag == 'img' and ('id', 'img_rand_code') in attrs:
             tag_attrs = dict(attrs)
             if 'src' in tag_attrs and tag_attrs['src']:
-                self.randCodeUrl = tag_attrs['src']
+                # 登录验证码的相对路径
+                relative_path = tag_attrs['src']
+                # 完整路径
+                self.randCodeUrl = "https://kyfw.12306.cn" + relative_path
+                img_code_params = urllib.parse.parse_qs(relative_path)
+                if 'rand' in img_code_params:
+                    # 登录验证码的验证令牌
+                    self.rand = img_code_params['rand'][0] if img_code_params['rand'] else ''
 
-    def getRandCodeURL(self):
-        return self.randCodeUrl
-
-# 解析登录成功后的HTML, 判断用户是否登录
-# <span class="login-txt" style="color: #666666"><span>意见反馈:<a class="cursor colorA" href="mailto:12306yjfk@rails.com.cn">12306yjfk@rails.com.cn</a>
-#          您好，</span>
-# <a id="login_user" href="/otn/index/initMy12306" class="colorA" style="margin-left:-0.5px;"><span>websoft</span>
+# 解析登录后返回的HTML, 获取用户帐户信息
+# 用于判断用户是否成功登录
 class InfoCenterParser(HTMLParser):
     def __init__(self):
-        self.welcomeInfo = ""
+        self.account_name = ""
         self.user_info_link = False
         self.flag = False
         HTMLParser.__init__(self)
@@ -42,13 +36,12 @@ class InfoCenterParser(HTMLParser):
     def handle_starttag(self, tag, attrs):
         if tag == 'a' and ('id', 'login_user') in attrs:
             self.user_info_link = True
-
-        if self.user_info_link and tag == 'span':
+        if tag == 'span' and self.user_info_link:
             self.flag = True
 
     def handle_data(self, data):
         if self.user_info_link and self.flag:
-            self.welcomeInfo = data
+            self.account_name = data
 
     def handle_endtag(self, tag):
         if tag == 'a':
@@ -56,93 +49,80 @@ class InfoCenterParser(HTMLParser):
         if tag == 'span':
             self.flag = False
 
-    def getWelcomeInfo(self):
-        return self.welcomeInfo
-
-
-def getContent(url, encode='gb18030'):
-    try:
-        response = urllib.request.urlopen(url)
-        content = response.read().decode(encode, 'ignore')
-        return content
-    except Exception:
-        return ''
-
 # 获取验证码图片
-def getRandImageUrl(ht):
-    loginHtml = ht.get(url="https://kyfw.12306.cn/otn/login/init");
+def getRandImageUrlAndCodeRand(ht):
+    result = {'url': '', 'rand': ''}
+    # 得到登录页面HTML内容
+    loginHtml = ht.get(url="https://kyfw.12306.cn/otn/login/init")
+    # 解析登录页面内容，获取图片验证码的URL地址，以及验证码令牌rand
     loginParer = LoginRandCodeParser()
     loginParer.feed(loginHtml)
-    randUrl = loginParer.getRandCodeURL()
-    if randUrl:
-        f = open("login.html", 'w', encoding='utf-8')
-        f.write(loginHtml)
-        f.close()
-        return "https://kyfw.12306.cn" + randUrl
-        # randImage = ShowRandImage(randUrl)
-        # randImage.show()
+    randUrl = loginParer.randCodeUrl
+    rand = loginParer.rand
+    if randUrl and rand:
+        result['url'] = randUrl
+        result['rand'] = rand
+        return result
     else:
         f = open("login.html", 'w', encoding='utf-8')
         f.write(loginHtml)
         f.close()
-        print("验证码URL获取失败")
-    return None
+        print("验证码URL获取失败, 详情查看返回的login.html页面")
+    return result
 
 
-def login(ht, username, password, randcode):
-    # 创建一个线程用户显示验证码图片
-    # showImageThread = threading.Thread(target=parserLoginHtmlShowRandImage, name="ShowImageThread")
-    # showImageThread.setDaemon(1)
-    # showImageThread.start()
-
-    # 验证输入的验证码是否正确
-    postDatas = {
-        'randCode': randcode,
-        'rand': "sjrand"
+def login(ht, username, password, randCode, rand):
+    # 判断用户输入的验证码是否正确
+    post_datas = {
+        'randCode': randCode, # 输入验证码
+        'rand': rand            # 验证令牌
     }
-    json_str = ht.post(url="https://kyfw.12306.cn/otn/passcodeNew/checkRandCodeAnsyn", params=postDatas)
+
+    # 检证输入验证码的合法性
+    json_str = ht.post(url="https://kyfw.12306.cn/otn/passcodeNew/checkRandCodeAnsyn", params=post_datas)
     json_data = json.loads(json_str)
     if (json_data["data"] == 'N'):
         print(json_str)
+        print('输入的验证码有误.')
     else:
-        postDatas = {
+        post_data = {
             "loginUserDTO.user_name": username,
             "userDTO.password": password,
-            "randCode": randcode
+            "randCode": randCode
         }
-        # 首先要请求 https://dynamic.12306.cn/otsweb/loginAction.do?method=loginAysnSuggest
-        # 用户判断当前网络环境是否可以登录,从得到的JSON数据{"loginRand":"172","randError":"Y"}中
-        # 获取登录令牌loginRand的值
+        # 请求 https://kyfw.12306.cn/otn/login/loginAysnSuggest
+        # 用于判断当前网络环境是否可以登录,得到JSON数据：
         # {"validateMessagesShowId":"_validatorMessage","status":true,"httpstatus":200,"data":"Y","messages":[],"validateMessages":{}}
-        json_str = ht.post(url="https://kyfw.12306.cn/otn/login/loginAysnSuggest", params=postDatas)
+        json_str = ht.post(url="https://kyfw.12306.cn/otn/login/loginAysnSuggest", params=post_data)
         json_data = json.loads(json_str)
 
         # loginRand = 0
         # 检查用户是否可以登录
-        if (type(json_data) == dict and "data" in json_data and type(json_data["data"]) == dict and "loginCheck" in json_data["data"] and json_data["data"]["loginCheck"] != 'Y'):
+        if (type(json_data) == dict and "data" in json_data and type(json_data["data"]) == dict and "loginCheck" in
+            json_data["data"] and json_data["data"]["loginCheck"] != 'Y'):
             print(json_str)
             print(json_data["messages"])
-            print("当前网络繁忙不可访问!")
+            print("当前网络繁忙不可登录访问!")
         else:
-            content = ht.post(url="https://kyfw.12306.cn/otn/login/userLogin", params=postDatas)
-
+            # 用户登录，获取登录返回的HTML
+            content = ht.post(url="https://kyfw.12306.cn/otn/login/userLogin", params=post_data)
+            # 解析登录返回的HTML判断用户是否成功登录
             infocenterParser = InfoCenterParser()
             infocenterParser.feed(content)
-
-            welcomeInfo = infocenterParser.getWelcomeInfo()
-            if welcomeInfo:
-                print(welcomeInfo)
+            user_info = infocenterParser.account_name
+            if user_info:
+                print('您好, %s' % user_info)
                 return True
             else:
-                f = open("log_result.html", 'w', encoding='utf-8', errors='ignore')
+                f = open("login_result.html", 'w', encoding='utf-8', errors='ignore')
                 f.write(content)
                 f.close()
-                print("登录失败！")
+                print("登录失败, 详情查看登录返回的login_result.html页面")
     return False
 
-
+# 读取config.ini文件获取用户设置的帐号信息
 def getUserInfo():
-    config = configparser.SafeConfigParser()
+    config = configparser.ConfigParser()
     config.read("config.ini")
     try:
         username = config.get("UserInfo", "username")

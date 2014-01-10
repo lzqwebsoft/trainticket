@@ -11,7 +11,11 @@ class AccessTrainOrderNetWork:
         self.ht = HttpTester()
         self.ht.addCookiejar()
 
+        # 获取用户帐号信息
         self.userInfo = login.getUserInfo()
+
+        # 登录验证令牌
+        self.login_rand = ''
 
         self.randImage = None
         self.queryFrame = None
@@ -26,9 +30,11 @@ class AccessTrainOrderNetWork:
 
     def access(self):
         if self.userInfo:
-            randImageUrl = login.getRandImageUrl(self.ht)
-            if randImageUrl:
-                self.randImage = LoginUI.LoginFrame(randImageUrl)
+            login_result = login.getRandImageUrlAndCodeRand(self.ht)
+            rand_image_url = login_result.get('url', '')
+            self.login_rand = login_result.get('rand', '')
+            if rand_image_url:
+                self.randImage = LoginUI.LoginFrame(rand_image_url)
                 self.randImage.loginButton.configure(command=self.processLoginCallBack)
                 self.randImage.randCode.bind("<Return>", self.processLoginCallBack)
                 self.randImage.show()
@@ -36,10 +42,11 @@ class AccessTrainOrderNetWork:
     # 处理登录回调
     def processLoginCallBack(self, event=None):
         if self.randImage:
+            # 获取前台用户输入的输入证码
             randCode = self.randImage.randCode.get()
-            if randCode.strip() != '':
+            if randCode:
                 loginResult = login.login(ht=self.ht, username=self.userInfo[0], password=self.userInfo[1],
-                                          randcode=randCode)
+                                          randCode=randCode, rand=self.login_rand)
                 if loginResult:
                     # 登录成功，关闭登框
                     self.randImage.quit()
@@ -68,22 +75,24 @@ class AccessTrainOrderNetWork:
         start_time = self.queryFrame.getSelectedTrainTime()
         trainClass = self.queryFrame.getSelectedTrainClass()
         trainPassType = self.queryFrame.getChoiceTrainPassType()
+        trainNos = self.queryFrame.trainNo.get()
         # 当时间未填时，设置为当前时间
         if not train_date or train_date.strip() == '': train_date = time.strftime("%Y-%m-%d", time.localtime())
         # 记录当前的查询条件
-        self.currentSelectedParams['from_station'] = from_station
-        self.currentSelectedParams['to_station'] = to_station
-        self.currentSelectedParams['train_date'] = train_date
-        self.currentSelectedParams['start_time'] = start_time
-        self.currentSelectedParams['trainClass'] = trainClass
-        self.currentSelectedParams['trainPassType'] = trainPassType
+        self.currentSelectedParams = {
+            'from_station': from_station,
+            'to_station': to_station,
+            'train_date': train_date,
+            'start_time': start_time,
+            'trainNos': trainNos,
+            'trainClass': trainClass,
+            'trainPassType': trainPassType
+        }
         # 执行查询，得到所有满足条件的列车
-        trains = query.queryTrains(self.ht, from_station=from_station, to_station=to_station,
-                                   train_date=train_date, start_time=start_time, trainClass=trainClass,
-                                   trainPassType=trainPassType)
+        trains = query.queryTrains(self.ht, query_params=self.currentSelectedParams)
         self.queryFrame.infoStartDateLabel.configure(
-            text="出发日期：%s %s->%s(共 %s 趟列车)" % (train_date, from_station, to_station, str(len(trains))))
-        if len(trains) > 0:
+            text="出发日期：%s %s->%s(共 %s 趟列车)" % (train_date, from_station, to_station, len(trains)))
+        if trains:
             print("%s 查询成功!" % time.strftime('%H:%M:%S', time.localtime(time.time())))
         self.queryFrame.resultTable.updateResult(trainDatas=trains, orderHandleFuc=self.orderTrainsCallBack)
 

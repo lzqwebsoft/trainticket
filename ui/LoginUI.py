@@ -1,8 +1,9 @@
 # coding: utf8
 import io
 import random
+from tkinter import *
+from tkinter.ttk import *
 from PIL import Image, ImageTk
-import tkinter as tk
 import socket
 import urllib.error
 from urllib.request import urlopen
@@ -12,7 +13,7 @@ class LoginFrame:
     def __init__(self, url):
         self.url = url
 
-        self.root = tk.Tk()
+        self.root = Tk()
         self.root.title("验证码")
 
         while True:
@@ -32,17 +33,17 @@ class LoginFrame:
         self.pil_image = Image.open(data_stream)
         # convert PIL image object to Tkinter PhotoImage object
         self.tk_image = ImageTk.PhotoImage(self.pil_image)
-        self.label = tk.Label(self.root, image=self.tk_image, bg='brown')
+        self.label = Label(self.root, image=self.tk_image, background='brown')
         self.label.pack(padx=5, pady=5)
-        self.button = tk.Button(self.root, text="刷新验证码", command=self.refreshImg)
+        self.button = Button(self.root, text="刷新验证码", command=self.refreshImg)
         self.button.pack(padx=5, pady=5)
 
-        randCodeLable = tk.Label(self.root, text="验证码：")
+        randCodeLable = Label(self.root, text="验证码：")
         randCodeLable.pack(padx=5, pady=5)
-        self.randCode = tk.Entry(self.root)
+        self.randCode = Entry(self.root)
         self.randCode.pack(padx=5, pady=5)
 
-        self.loginButton = tk.Button(self.root, text="登录", default=tk.ACTIVE)
+        self.loginButton = Button(self.root, text="登录", default=ACTIVE)
         self.loginButton.pack(padx=5, pady=5)
 
     def refreshImg(self):

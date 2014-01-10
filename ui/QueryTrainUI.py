@@ -53,8 +53,8 @@ class QueryTrainFrame:
         self.trainNo.place(x = 70, y = 45, width=200, height=23)
 
         # 列车类型
-        allTrainClass = ['全部', '动车', 'Z字头', 'T字头', 'K字头', '其它']
-        self.trainClassValue = ["QB", "D", "Z", "T", "K", "QT"]
+        allTrainClass = ['G-高铁', 'D-动车', 'Z-直达', 'T-特快', 'K-快速', '其它']
+        self.trainClassValue = ["G", "D", "Z", "T", "K", 'QT']
         index = 3
         self.vars = []
         for trainClassText in allTrainClass:
@@ -62,7 +62,7 @@ class QueryTrainFrame:
             index += 1
             chk = Checkbutton(conditionPanel, text=trainClassText, variable=var)
             var.set(1)   # 设置选中
-            chk.place(x = 10 + (index-4)*58, y = 78, width=55, height=23)
+            chk.place(x = 10 + (index-4)*68, y = 78, width=64, height=23)
             self.vars.append(var)
 
         # 列车站点经过类型
@@ -74,7 +74,7 @@ class QueryTrainFrame:
             index += 1
             radiobutton = Radiobutton(conditionPanel, text=text, variable=self.trainPassTypeVar, value=value)
             radiobutton.place(x = 300 + (index-9)*50, y = 78, width=55, height=23)
-        
+
         self.selectButton = Button(conditionPanel, text="查询")
         self.selectButton.place(x = 650, y = 110, width=70, height=25)
 
@@ -110,11 +110,8 @@ class QueryTrainFrame:
 
     def getSelectedTrainClass(self):
         result = list(map((lambda var: var.get()), self.vars))
-        selectedValue = ""
-        for x in range(len(self.trainClassValue)):
-            if result[x]:
-                selectedValue += self.trainClassValue[x] + "#"
-        return selectedValue
+        train_classes = [self.trainClassValue[i] for i, x in enumerate(result) if x]
+        return train_classes
 
     def getChoiceTrainPassType(self):
         index = self.trainPassTypeVar.get()
@@ -195,45 +192,51 @@ class ResultTable(Canvas):
         rows = len(trainDatas)
         if rows <= 0: return
         self.configure(scrollregion=(0,0,730, rows*self.columnHeigth+3))
-        for row in range(rows):
-            current_row = []
-
-            labelbg = "white"
+        for row, trainData in enumerate(trainDatas):
+            labelBg = "white"
             if row % 2 != 0:
                 self.create_rectangle(1, row*self.columnHeigth, self.width-1, (row+1)*self.columnHeigth, fill='#E5F2F8')
-                labelbg = "#E5F2F8"
+                labelBg = "#E5F2F8"
 
             self.create_line(1, row*self.columnHeigth, 1, (row+1)*self.columnHeigth, width=1, fill=self.borderColor)        # 第一列宽度50
-            numberLable = Label(self.parent, text=trainDatas[row]['no'], foreground='blue', cursor="mouse", background=labelbg)
+            numberLable = Label(self.parent, text=trainData['no'], foreground='blue', cursor="mouse", background=labelBg)
             self.create_window(5, row*self.columnHeigth+(self.columnHeigth-25)/2, anchor=NW, window=numberLable, height=25)
 
+            # 使用颜色标记过站
+            form_station_color = 'black' if trainData['form_station'] == trainData['start_station'] else 'red'
             self.create_line(51, row*self.columnHeigth, 51, (row+1)*self.columnHeigth, width=1, fill=self.borderColor)      # 第二列宽度65
-            self.create_text(51+5, row*self.columnHeigth+self.columnHeigth/2, text=trainDatas[row]['form_station'], anchor=SW)
-            self.create_text(51+5, row*self.columnHeigth+self.columnHeigth/2, text=trainDatas[row]['start_time'], anchor=NW)
+            self.create_text(51+5, row*self.columnHeigth+self.columnHeigth/2, text=trainData['form_station'], fill=form_station_color, anchor=SW)
+            self.create_text(51+5, row*self.columnHeigth+self.columnHeigth/2, text=trainData['start_time'],  anchor=NW)
 
+            to_station_color = 'black' if trainData['to_station'] == trainData['end_station'] else 'red'
             self.create_line(116, row*self.columnHeigth, 116, (row+1)*self.columnHeigth, width=1, fill=self.borderColor)    # 第三列宽度65
-            self.create_text(116+5, row*self.columnHeigth+self.columnHeigth/2, text=trainDatas[row]["to_station"], anchor=SW)
-            self.create_text(116+5, row*self.columnHeigth+self.columnHeigth/2, text=trainDatas[row]['end_time'], anchor=NW)
+            self.create_text(116+5, row*self.columnHeigth+self.columnHeigth/2, text=trainData["to_station"], fill=to_station_color, anchor=SW)
+            self.create_text(116+5, row*self.columnHeigth+self.columnHeigth/2, text=trainData['end_time'], anchor=NW)
 
             self.create_line(181, row*self.columnHeigth, 181, (row+1)*self.columnHeigth, width=1, fill=self.borderColor)    # 第四列宽度50
-            self.create_text(181+25, row*self.columnHeigth+self.columnHeigth/2, text=trainDatas[row]["take_time"])
+            self.create_text(181+25, row*self.columnHeigth+self.columnHeigth/2, text=trainData["take_time"])
 
             # 如下其余宽度40
             for column in range(11):
                 self.create_line(column*40+231, row*self.columnHeigth, column*40+231, (row+1)*self.columnHeigth, width=1, fill=self.borderColor)
                 seatColor = "black"
-                seatNumInfo = trainDatas[row]["seat_type"+str(column+1)]
+                seatNumInfo = trainData["seat_type"+str(column+1)]
                 if seatNumInfo=="有": seatColor = "green"
                 self.create_text(column*40+231+40/2, row*self.columnHeigth+self.columnHeigth/2, text=seatNumInfo, fill=seatColor)
             self.create_line(11*40+231, row*self.columnHeigth, 11*40+231, (row+1)*self.columnHeigth, width=1, fill=self.borderColor)
             orderButtonState = DISABLED
-            if trainDatas[row]["canWebBuy"] == 'Y':
+            if trainData["canWebBuy"] == 'Y':
                 orderButtonState = NORMAL
-            if trainDatas[row]["buttonTextInfo"]=='预订':
-                orderButton = Button(self.parent, text = "预订", state=orderButtonState, command=lambda order_param=trainDatas[row]["order_param"]: orderHandleFuc(order_param))
+            if trainData["buttonTextInfo"]=='预订':
+                orderButton = Button(self.parent, text = "预订", state=orderButtonState, command=lambda order_param=trainData["order_param"]: orderHandleFuc(order_param))
                 self.create_window(self.width-55, row*self.columnHeigth+(self.columnHeigth-25)/2, anchor=NW, window=orderButton, height=25, width=50)
             else:
-                self.create_text(self.width-60/2, row*self.columnHeigth+self.columnHeigth/2, text=trainDatas[row]["buttonTextInfo"], fill="black")
+                buttonTextInfo = trainData["buttonTextInfo"].split('<br/>')
+                if len(buttonTextInfo)==1:
+                    self.create_text(self.width-60/2, row*self.columnHeigth+self.columnHeigth/2, text=trainData["buttonTextInfo"], fill="black")
+                elif len(buttonTextInfo)==2:
+                    self.create_text(self.width-55, row*self.columnHeigth+self.columnHeigth/2, text=buttonTextInfo[0], fill="black", anchor=SW)
+                    self.create_text(self.width-55, row*self.columnHeigth+self.columnHeigth/2, text=buttonTextInfo[1], fill="black", anchor=NW)
             self.create_line(self.width-1, row*self.columnHeigth, self.width-1, (row+1)*self.columnHeigth, width=1, fill=self.borderColor)
 
             self.create_line(0, row*self.columnHeigth, self.width, row*self.columnHeigth, width=1, fill=self.borderColor)
