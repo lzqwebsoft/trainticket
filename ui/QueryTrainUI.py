@@ -47,10 +47,22 @@ class QueryTrainFrame:
         self.startTime.set("00:00--24:00")   # 设置默认时间
         self.startTime.place(x = 620, y = 10, width=100, height=23)
 
+        endTimeLabel = Label(conditionPanel, text="到达时间:")
+        endTimeLabel.place(x = 560, y = 45, width=60, height=25)
+        self.endTime = Combobox(conditionPanel, values=["00:00--24:00", "00:00--06:00", "06:00--12:00", "12:00--18:00", "18:00--24:00"], state="readonly")
+        self.endTime.set("00:00--24:00")   # 设置默认时间
+        self.endTime.place(x = 620, y = 45, width=100, height=23)
+
         trainNoLabel = Label(conditionPanel, text="出发车次:")
         trainNoLabel.place(x = 10, y = 45, width=60, height=25)
         self.trainNo = Entry(conditionPanel, width=30)
-        self.trainNo.place(x = 70, y = 45, width=200, height=23)
+        self.trainNo.place(x = 70, y = 45, width=270, height=23)
+
+        # 过滤空列车开关
+        self.showCanBuySwitch = IntVar()
+        showCanBuyCheckButton = Checkbutton(conditionPanel, text='仅显示可预订车次', variable=self.showCanBuySwitch)
+        # self.autoQuerySwitch.set(1)
+        showCanBuyCheckButton.place(x=430, y=45, width=120, height=23)
 
         # 列车类型
         allTrainClass = ['G-高铁', 'D-动车', 'Z-直达', 'T-特快', 'K-快速', '其它']
@@ -73,7 +85,13 @@ class QueryTrainFrame:
         for text, value in trainPassType:
             index += 1
             radiobutton = Radiobutton(conditionPanel, text=text, variable=self.trainPassTypeVar, value=value)
-            radiobutton.place(x = 300 + (index-9)*50, y = 78, width=55, height=23)
+            radiobutton.place(x = 200 + (index-9)*50, y = 78, width=55, height=23)
+
+        # 自动查询开关
+        self.autoQuerySwitch = IntVar()
+        autoQueryCheckButton = Checkbutton(conditionPanel, text='自动查询', variable=self.autoQuerySwitch)
+        # self.autoQuerySwitch.set(1)
+        autoQueryCheckButton.place(x=650, y=78, width=70, height=23)
 
         self.selectButton = Button(conditionPanel, text="查询")
         self.selectButton.place(x = 650, y = 110, width=70, height=25)

@@ -1,12 +1,13 @@
 # coding: utf8
 import io
 import random
-from tkinter import *
-from tkinter.ttk import *
-from PIL import Image, ImageTk
+import tkinter
 import socket
 import urllib.error
+from tkinter import Tk
 from urllib.request import urlopen
+from PIL import Image, ImageTk
+from tkinter.ttk import Label,Button,Entry
 
 # 将网络中获取的验证码图片使用弹窗显示
 class LoginFrame:
@@ -43,7 +44,7 @@ class LoginFrame:
         self.randCode = Entry(self.root)
         self.randCode.pack(padx=5, pady=5)
 
-        self.loginButton = Button(self.root, text="登录", default=ACTIVE)
+        self.loginButton = Button(self.root, text="登录", default=tkinter.ACTIVE)
         self.loginButton.pack(padx=5, pady=5)
 
     def refreshImg(self):

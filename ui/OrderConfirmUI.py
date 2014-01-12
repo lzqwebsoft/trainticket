@@ -22,7 +22,7 @@ from PIL import Image, ImageTk
 class ConfirmPassengerFrame:
     def __init__(self, contacts=None, rand_image_url='', train_info=None, passenger_params=None,
                  ticket_types=None, card_types=None):
-        self.root = Tk()
+        self.root = Toplevel()
         self.root.title("车票预订")
         self.root['padx'] = 20
         self.root['pady'] = 10
@@ -136,8 +136,8 @@ class ConfirmPassengerFrame:
                         print('获取验证码超时：%s\r\n重新获取.' % (self.rand_image_url))
                         continue
             data_stream = io.BytesIO(image_bytes)
-            self.pil_image = Image.open(data_stream)
-            self.tk_image = ImageTk.PhotoImage(self.pil_image)
+            pil_image = Image.open(data_stream)
+            self.tk_image = ImageTk.PhotoImage(pil_image)
             self.randImageShow = Label(customerOparetorPanel, image=self.tk_image, background='brown')
             self.randImageShow.grid(row=0, column=3, padx=5, pady=5)
             refreshImage = Button(customerOparetorPanel, text='刷新验证码', command=self.refreshImageCallBack)
@@ -153,7 +153,7 @@ class ConfirmPassengerFrame:
         # 按钮操作区
         operatorPanel = Frame(self.root)
         operatorPanel.pack(fill=X, pady=8)
-        self.backButton = Button(operatorPanel, text="重新选择")
+        self.backButton = Button(operatorPanel, text="关闭")
         self.backButton.grid(row=0, column=1, sticky=W + E + N + S, padx=5)
         self.submitButton = Button(operatorPanel, text="提交订单")
         self.submitButton.grid(row=0, column=2, sticky=W + E + N + S, padx=5)
@@ -216,8 +216,8 @@ class ConfirmPassengerFrame:
                         print('获取验证码超时：%s\r\n重新获取.' % (self.rand_image_url))
                         continue
             data_stream = io.BytesIO(image_bytes)
-            self.pil_image = Image.open(data_stream)
-            self.tk_image = ImageTk.PhotoImage(self.pil_image)
+            pil_image = Image.open(data_stream)
+            self.tk_image = ImageTk.PhotoImage(pil_image)
             self.randImageShow.configure(image=self.tk_image)
         else:
             print("验证码URL不能为空")

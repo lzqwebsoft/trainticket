@@ -1,15 +1,15 @@
 # coding: utf8
 import json
 import configparser
-import urllib, urllib.request
-from html.parser import HTMLParser
+import html.parser
+import urllib, urllib.request,urllib.parse
 
 # 读取URL获得验证码的路径HTML解析类
-class LoginRandCodeParser(HTMLParser):
+class LoginRandCodeParser(html.parser.HTMLParser):
     def __init__(self):
         self.randCodeUrl = ""
         self.rand = ''
-        HTMLParser.__init__(self)
+        html.parser.HTMLParser.__init__(self)
 
     def handle_starttag(self, tag, attrs):
         if tag == 'img' and ('id', 'img_rand_code') in attrs:
@@ -26,12 +26,12 @@ class LoginRandCodeParser(HTMLParser):
 
 # 解析登录后返回的HTML, 获取用户帐户信息
 # 用于判断用户是否成功登录
-class InfoCenterParser(HTMLParser):
+class InfoCenterParser(html.parser.HTMLParser):
     def __init__(self):
         self.account_name = ""
         self.user_info_link = False
         self.flag = False
-        HTMLParser.__init__(self)
+        html.parser.HTMLParser.__init__(self)
 
     def handle_starttag(self, tag, attrs):
         if tag == 'a' and ('id', 'login_user') in attrs:
@@ -98,12 +98,8 @@ def login(ht, username, password, randCode, rand):
 
         # loginRand = 0
         # 检查用户是否可以登录
-        if (type(json_data) == dict and "data" in json_data and type(json_data["data"]) == dict and "loginCheck" in
-            json_data["data"] and json_data["data"]["loginCheck"] != 'Y'):
-            print(json_str)
-            print(json_data["messages"])
-            print("当前网络繁忙不可登录访问!")
-        else:
+        if ("data" in json_data and json_data["data"] and "loginCheck" in json_data["data"] and json_data["data"][
+            "loginCheck"] == 'Y'):
             # 用户登录，获取登录返回的HTML
             content = ht.post(url="https://kyfw.12306.cn/otn/login/userLogin", params=post_data)
             # 解析登录返回的HTML判断用户是否成功登录
@@ -118,6 +114,11 @@ def login(ht, username, password, randCode, rand):
                 f.write(content)
                 f.close()
                 print("登录失败, 详情查看登录返回的login_result.html页面")
+        else:
+            messages = json_data.get('messages', '') if type(json_data) == dict else json_str
+            if not messages: messages='当前网络繁忙不可登录访问!'
+            print(messages)
+
     return False
 
 # 读取config.ini文件获取用户设置的帐号信息

@@ -3,33 +3,15 @@ import json
 import re
 import time
 import urllib.parse
-from common.httpaccess import HttpTester
+# Python3
+import html.parser
 from threading import Timer
-
-try:
-    # Python2
-    from HTMLParser import HTMLParser
-    # import tkMessageBox as messagebox
-except ImportError:
-    # Python3
-    from html.parser import HTMLParser
-    # from tkinter import messagebox
-
-ticket_submit_order = {'ticket_type': {'adult': "1", 'child': "2", 'student': "3", 'disability': "4"},
-                       'ticket_type_name': {"1": "成人票", "2": "孩票", "3": "学生票", "4": "伤残军人票"},
-                       'tour_flag': {'dc': "dc", 'wc': "wc", 'fc': "fc", 'gc': "gc", 'lc1': "l1", 'lc2': "l2"},
-                       'passenger_type': {'adult': "1", 'child': "2", 'student': "3", 'disability': "4"},
-                       'passenger_card_type': {'two': "1", 'one': "2", 'tmp': "3", 'passport': "B",
-                                               'hongkong_macau': "C",
-                                               'taiwan': "G"}, 'request_flag': {'isAsync': "1"},
-                       'ticket_query_flag': {'query_commom': "00", 'query_student': "0X00"},
-                       'seatType': {'yz_type': "1"},
-                       'special_areas': {'lso': "LSO", 'dao': "DAO", 'ado': "ADO", 'nqo': "NQO", 'tho': "THO"}}
+# from tkinter import messagebox
 
 # 用于解析车票预订HTML的解析类
-class ParserConfirmPassengerInitPage(HTMLParser):
+class ParserConfirmPassengerInitPage(html.parser.HTMLParser):
     def __init__(self, orderInitHtml=''):
-        HTMLParser.__init__(self)
+        html.parser.HTMLParser.__init__(self)
         self.orderInitHtml = orderInitHtml
 
         self.train_info = []                       # 当前列车信息

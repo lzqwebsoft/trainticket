@@ -2,8 +2,7 @@
 from cx_Freeze import setup, Executable
 
 build_exe_options = {
-    'compressed': True,
-    'packages':['ui', 'core', 'common'],
+    'include_files': ['config.ini']
 }
 setup(
     name="trainticket",

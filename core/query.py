@@ -43,16 +43,15 @@ def updateCityCode(ht):
         print('更新获取城市编码列表数据失败！')
 
 # 根据城市名获取对应城市编码
-def getCityCodeByName(cityName):
+def getAllStationCodes():
     config = configparser.ConfigParser()
     config.read("config.ini")
     try:
-        cityCode = config.get("Stations", cityName)
-        if cityCode.strip() != '':
-            return cityCode
+        stationCodes = dict(config.items("Stations"))
+        return stationCodes
     except configparser.NoSectionError:
-        print("没有对应城市：%s" % cityName)
-    return ''
+        print("车站编码装载失败!")
+    return {}
 
 # 得到可预定最大日期
 def getMaxPeriod(ht):
@@ -88,9 +87,11 @@ def getTrainList(queryResult, filter_params={}):
     train_types = ["G", "D", "Z", "T", "K"]
     filter_train_classes = filter_params.get('trainClass', [])                      # 过滤列车类型
     start_time_range = filter_params.get('start_time', '00:00--24:00').split('--')  # 过滤出发时间
+    end_time_range = filter_params.get('end_time', '00:00--24:00').split('--')      # 过滤到达时间
     trainNoStr = filter_params.get('trainNos')
     trainNos = trainNoStr.split(',') if trainNoStr else []                          # 过滤车次号
     trainPassType = filter_params.get('trainPassType')                              # 过始通过类型
+    justShowCanBuy = filter_params.get('justShowCanBuy', False)                     # 仅显示可预订列车开关
     if len(queryResult):
         for cvsData in queryResult:
             train_detail_info = cvsData.get('queryLeftNewDTO', {})
@@ -98,11 +99,17 @@ def getTrainList(queryResult, filter_params={}):
             # ======由用户设定的列车类型过滤列车结果======
             station_train_code = train_detail_info.get('station_train_code')
             start_time = train_detail_info.get('start_time', '00:00')
+            end_time = train_detail_info.get('arrive_time', '00:00')
             from_station_name = train_detail_info.get('from_station_name')
             start_station_name = train_detail_info.get('start_station_name')
+            canWebBuy = train_detail_info.get('canWebBuy', "N")
+            # 过滤不可预订列车
+            if justShowCanBuy and canWebBuy == 'N': continue
             if not (station_train_code[:1] in filter_train_classes or (station_train_code[:1] not in train_types and 'QT' in filter_train_classes)): continue
             # 发车时间过滤
             if start_time < start_time_range[0] or start_time > start_time_range[1]: continue
+            # 到站时间过滤
+            if end_time < end_time_range[0] or end_time > end_time_range[1]: continue
             # 指定车次过滤
             if trainNos and station_train_code not in trainNos: continue
             # 过滤通过类型
@@ -130,7 +137,7 @@ def getTrainList(queryResult, filter_params={}):
                           'rz_num', 'yz_num', 'wz_num', 'qt_num', 'gg_num', 'yb_num')
             for (i, x) in enumerate(seat_codes): train["seat_type" + str(i + 1)] = train_detail_info.get(x)
             # 预定参数
-            train['canWebBuy'] = train_detail_info.get('canWebBuy', "N")
+            train['canWebBuy'] = canWebBuy
             train["order_param"] = cvsData.get('secretStr')
             train['buttonTextInfo'] = cvsData.get('buttonTextInfo', '预订')
             trains.append(train)
@@ -152,27 +159,28 @@ def queryTrains(ht, query_params={}):
     from_station = query_params.get('from_station')
     to_station = query_params.get('to_station')
     if from_station and to_station:
-        fromStation = getCityCodeByName(from_station)
-        toStation = getCityCodeByName(to_station)
         purposeCodes = getPurposeCodes(False)
         selectParams = [("leftTicketDTO.train_date", train_date),
-                        ("leftTicketDTO.from_station", fromStation),
-                        ("leftTicketDTO.to_station", toStation),
+                        ("leftTicketDTO.from_station", from_station),
+                        ("leftTicketDTO.to_station", to_station),
                         ("purpose_codes", purposeCodes)]
 
         queryResult = ht.get(url="https://kyfw.12306.cn/otn/leftTicket/query", params=selectParams)
-        query_data = json.loads(queryResult)
-        train_data = query_data.get('data', {}) if type(query_data) == dict else {}
-        if train_data:
-            # 解析整理得到的列车数据
-            trains = getTrainList(train_data, filter_params=query_params)
-            if trains != None and len(trains) > 0:
-                return trains
-        else:
-            if 'messages' in query_data and query_data['messages']:
-                print(query_data['messages'])
+        try:
+            query_data = json.loads(queryResult)
+            train_data = query_data.get('data', {}) if type(query_data) == dict else {}
+            if train_data:
+                # 解析整理得到的列车数据
+                trains = getTrainList(train_data, filter_params=query_params)
+                if trains != None and len(trains) > 0:
+                    return trains
             else:
-                print(queryResult)
+                if 'messages' in query_data and query_data['messages']:
+                    print(query_data['messages'])
+                else:
+                    print(queryResult)
+                print('查询失败')
+        except TypeError:
             print('查询失败')
     else:
         print('查询失败，请设置出发地与目的地')

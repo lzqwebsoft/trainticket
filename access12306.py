@@ -1,9 +1,9 @@
 # coding: utf8
 import time
-from ui import *
-from core import *
+import tkinter
+import ui.LoginUI, ui.OrderConfirmUI, ui.QueryTrainUI
+from core import login,order,query
 from common.httpaccess import HttpTester
-from tkinter import *
 
 
 class AccessTrainOrderNetWork:
@@ -13,6 +13,8 @@ class AccessTrainOrderNetWork:
 
         # 获取用户帐号信息
         self.userInfo = login.getUserInfo()
+        # 装载列车站台编码
+        self.allStationCodes = {}
 
         # 登录验证令牌
         self.login_rand = ''
@@ -34,7 +36,7 @@ class AccessTrainOrderNetWork:
             rand_image_url = login_result.get('url', '')
             self.login_rand = login_result.get('rand', '')
             if rand_image_url:
-                self.randImage = LoginUI.LoginFrame(rand_image_url)
+                self.randImage = ui.LoginUI.LoginFrame(rand_image_url)
                 self.randImage.loginButton.configure(command=self.processLoginCallBack)
                 self.randImage.randCode.bind("<Return>", self.processLoginCallBack)
                 self.randImage.show()
@@ -52,16 +54,18 @@ class AccessTrainOrderNetWork:
                     self.randImage.quit()
                     # 更新城市编码表
                     query.updateCityCode(self.ht)
+                    # 装载列车站点编码
+                    self.allStationCodes = query.getAllStationCodes()
                     # 获取默认的列车查询信息
                     defaultQueryParams = query.getDefaultQueryParams()
                     # 启动列车查询窗体
-                    self.queryFrame = QueryTrainUI.QueryTrainFrame(initQueryParams=defaultQueryParams)
+                    self.queryFrame = ui.QueryTrainUI.QueryTrainFrame(initQueryParams=defaultQueryParams)
                     self.queryFrame.selectButton.configure(command=self.queryTrainsCallBack)
                     self.queryFrame.show()
                 else:
                     print("登录失败，请再来一次")
                     self.randImage.refreshImg()
-                    self.randImage.randCode.delete(0, END)
+                    self.randImage.randCode.delete(0, tkinter.END)
             else:
                 print("请输入验证码")
 
@@ -73,6 +77,7 @@ class AccessTrainOrderNetWork:
         to_station = self.queryFrame.toStation.get()
         train_date = self.queryFrame.trainDate.get()
         start_time = self.queryFrame.getSelectedTrainTime()
+        end_time = self.queryFrame.endTime.get()
         trainClass = self.queryFrame.getSelectedTrainClass()
         trainPassType = self.queryFrame.getChoiceTrainPassType()
         trainNos = self.queryFrame.trainNo.get()
@@ -80,14 +85,18 @@ class AccessTrainOrderNetWork:
         if not train_date or train_date.strip() == '': train_date = time.strftime("%Y-%m-%d", time.localtime())
         # 记录当前的查询条件
         self.currentSelectedParams = {
-            'from_station': from_station,
-            'to_station': to_station,
+            'from_station': self.allStationCodes.get(from_station, ''),
+            'to_station': self.allStationCodes.get(to_station, ''),
             'train_date': train_date,
             'start_time': start_time,
+            'end_time': end_time,
             'trainNos': trainNos,
             'trainClass': trainClass,
-            'trainPassType': trainPassType
+            'trainPassType': trainPassType,
+            'justShowCanBuy': self.queryFrame.showCanBuySwitch.get()
         }
+
+        isAutoQuery = self.queryFrame.autoQuerySwitch.get()     # 自动查询开关设置的值
         # 执行查询，得到所有满足条件的列车
         trains = query.queryTrains(self.ht, query_params=self.currentSelectedParams)
         self.queryFrame.infoStartDateLabel.configure(
@@ -95,6 +104,19 @@ class AccessTrainOrderNetWork:
         if trains:
             print("%s 查询成功!" % time.strftime('%H:%M:%S', time.localtime(time.time())))
         self.queryFrame.resultTable.updateResult(trainDatas=trains, orderHandleFuc=self.orderTrainsCallBack)
+        # 判断查询的结果，如果没有可预订的列车，且开启了自动查询，则进行自动查询循环
+        canWebBuy = False
+        for train in trains:
+            tmp = train.get('canWebBuy', 'N')
+            if tmp == 'Y':
+                canWebBuy = True
+                break
+        if isAutoQuery and not canWebBuy:
+            self.queryFrame.selectButton.configure(state=tkinter.DISABLED, text='自动查询中')
+            print('自动查询开启，5秒后进行下一波查询.')
+            self.queryFrame.root.after(5000, self.queryTrainsCallBack)
+        else:
+            self.queryFrame.selectButton.configure(state=tkinter.NORMAL, text='查询')
 
     # 处理列车预定按钮回调
     def orderTrainsCallBack(self, selectStr='', row=0):
@@ -115,9 +137,9 @@ class AccessTrainOrderNetWork:
                 passenger_params = self.parser.get_ticketInfoForPassengerForm()
                 # 判断得到的数据是否合法
                 if img_rand_code_url and trainInfo and contacts and passenger_params:
-                    self.queryFrame.quit()      # 注销查询窗体
-                    self.queryFrame = None
-                    self.comfirmFrame = OrderConfirmUI.ConfirmPassengerFrame(contacts=contacts,
+                    # self.queryFrame.quit()      # 注销查询窗体
+                    # self.queryFrame = None
+                    self.comfirmFrame = ui.OrderConfirmUI.ConfirmPassengerFrame(contacts=contacts,
                                                                              rand_image_url=img_rand_code_url,
                                                                              train_info=trainInfo,
                                                                              passenger_params=passenger_params)
@@ -137,9 +159,9 @@ class AccessTrainOrderNetWork:
         self.comfirmFrame.quit()
         self.comfirmFrame = None
         # 新建查询窗体
-        self.queryFrame = QueryTrainUI.QueryTrainFrame(initQueryParams=self.currentSelectedParams)
-        self.queryFrame.selectButton.configure(command=self.queryTrainsCallBack)
-        self.queryFrame.show()
+        #self.queryFrame = ui.QueryTrainUI.QueryTrainFrame(initQueryParams=self.currentSelectedParams)
+        #self.queryFrame.selectButton.configure(command=self.queryTrainsCallBack)
+        #self.queryFrame.show()
 
     # 订单提交回调
     def submitOrderCallBack(self):
@@ -217,7 +239,7 @@ class AccessTrainOrderNetWork:
                     ('REPEAT_SUBMIT_TOKEN', self.parser.globalRepeatSubmitToken)
                 ]
                 queue_note = order.getQueueCount(self.ht, queueCounParams, seat_type)
-                OrderConfirmUI.ConfirmOrderDialog(self.comfirmFrame.root, queue_note, self.parser.get_train_info(),
+                ui.OrderConfirmUI.ConfirmOrderDialog(self.comfirmFrame.root, queue_note, self.parser.get_train_info(),
                                                   self.comfirmFrame.getPassengerInfo(), self.comfirmOrderSubmitCallBack)
 
     # 用户点击提交订单确认对话框的确认按钮时回调
