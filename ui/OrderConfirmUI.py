@@ -494,7 +494,7 @@ class CustomerInfoContent(Frame):
 
 # 订单提交对话框
 class ConfirmOrderDialog(Toplevel):
-    def __init__(self, parent, prompt_text='', train_info=None, passenger_info=None, okFunc=None):
+    def __init__(self, parent, prompt_text='', train_info=None, passenger_info=None, okFunc=None, orderParams=None):
         Toplevel.__init__(self, parent)
         self.transient(parent)
 
@@ -505,6 +505,7 @@ class ConfirmOrderDialog(Toplevel):
         self.train_info = train_info
         self.passenger_info = passenger_info
         self.okFunc = okFunc
+        self.orderParams = orderParams
 
         body = Frame(self)
         self.initial_focus = self.body(body)
@@ -597,8 +598,8 @@ class ConfirmOrderDialog(Toplevel):
         label = Label(master, text="注：系统将根据售出情况随机为您申请席位，暂不支持自选席位。", foreground='#3177BF')
         label.pack(fill=X, pady=5)
 
-        prompt_label = Label(master, text=self.prompt_text, foreground='red')
-        prompt_label.pack(fill=X, pady=5)
+        self.prompt_label = Label(master, text=self.prompt_text, foreground='red')
+        self.prompt_label.pack(fill=X, pady=5)
 
     def buttonbox(self):
         # add standard button box. override if you don't want the
@@ -621,7 +622,7 @@ class ConfirmOrderDialog(Toplevel):
             return
         self.withdraw()
         self.update_idletasks()
-        self.okFunc()
+        self.okFunc(self.orderParams)
         self.cancel()
 
     def cancel(self, event=None):
