@@ -139,3 +139,14 @@ def getUserInfo():
             input("\r\n输入任意字符结束...")
 
     return None
+
+# 读取config.ini文件获取系统性配置信息
+def getPerformanceInfo():
+    config = configparser.ConfigParser()
+    config.read("config.ini")
+    try:
+        stationCodes = dict(config.items("PerformanceInfo"))
+        return stationCodes
+    except configparser.NoSectionError:
+        print("系统性能配置装载失败!")
+    return {}

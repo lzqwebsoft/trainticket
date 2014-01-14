@@ -13,8 +13,12 @@ class AccessTrainOrderNetWork:
 
         # 获取用户帐号信息
         self.userInfo = login.getUserInfo()
+        # 获取用户设置的性能配置信息
+        self.performanceInfo = login.getPerformanceInfo()
         # 装载列车站台编码
         self.allStationCodes = {}
+        # 装载用户设定的常用联系人信息
+        self.contacts = {}
 
         # 登录验证令牌
         self.login_rand = ''
@@ -51,10 +55,15 @@ class AccessTrainOrderNetWork:
                     self.randImage.quit()
                     # 更新城市编码表
                     query.updateCityCode(self.ht)
-                    # 装载列车站点编码
-                    self.allStationCodes = query.getAllStationCodes()
+                    # 得到性能配置中设定是否更新车站编码属性，默认是Y，表更新
+                    update_stations = self.performanceInfo.get('update_stations', 'Y')
+                    if update_stations and update_stations=="Y":
+                        # 装载列车站点编码
+                        self.allStationCodes = query.getAllStationCodes()
                     # 获取默认的列车查询信息
                     defaultQueryParams = query.getDefaultQueryParams()
+                    # 载入用户设定的所有联系人信息
+                    self.contacts = order.getAllContacts(self.ht)
                     # 启动列车查询窗体
                     self.queryFrame = ui.QueryTrainUI.QueryTrainFrame(initQueryParams=defaultQueryParams)
                     self.queryFrame.selectButton.configure(command=self.queryTrainsCallBack)
@@ -109,9 +118,11 @@ class AccessTrainOrderNetWork:
                 canWebBuy = True
                 break
         if isAutoQuery and not canWebBuy:
+            # 获取配置文件中设定的查询间隙,默认是5秒
+            query_interval = self.performanceInfo.get('query_interval', 5)
             self.queryFrame.selectButton.configure(state=tkinter.DISABLED, text='自动查询中')
-            print('自动查询开启，5秒后进行下一波查询.')
-            self.queryFrame.root.after(5000, self.queryTrainsCallBack)
+            print('自动查询开启，%s秒后进行下一波查询.' % query_interval)
+            self.queryFrame.root.after(int(query_interval)*1000, self.queryTrainsCallBack)
         else:
             self.queryFrame.selectButton.configure(state=tkinter.NORMAL, text='查询')
 
@@ -125,8 +136,6 @@ class AccessTrainOrderNetWork:
                 # 记录车票预订的HTML解析对象parser
                 parser = order.ParserConfirmPassengerInitPage(submitResult)
                 parser.feed(submitResult)
-                # 得到联系人
-                contacts = order.getAllContacts(self.ht)
                 # 列车信息
                 trainInfo = parser.get_train_info()
                 # 验证码地址
@@ -134,14 +143,14 @@ class AccessTrainOrderNetWork:
                 # 订单选座参数
                 passenger_params = parser.get_ticketInfoForPassengerForm()
                 # 判断得到的数据是否合法
-                if img_rand_code_url and trainInfo and contacts and passenger_params:
+                if img_rand_code_url and trainInfo and self.contacts and passenger_params:
                     # self.queryFrame.quit()      # 注销查询窗体
                     # self.queryFrame = None
-                    comfirmFrame = ui.OrderConfirmUI.ConfirmPassengerFrame(contacts=contacts,
+                    comfirmFrame = ui.OrderConfirmUI.ConfirmPassengerFrame(contacts=self.contacts,
                                                                              rand_image_url=img_rand_code_url,
                                                                              train_info=trainInfo,
                                                                              passenger_params=passenger_params)
-                    comfirmFrame.backButton.configure(command=lambda comfirmFrame=comfirmFrame, parser=parser: self.backToTrainQueryCallBack(comfirmFrame))
+                    comfirmFrame.backButton.configure(command=lambda comfirmFrame=comfirmFrame: self.backToTrainQueryCallBack(comfirmFrame))
                     comfirmFrame.submitButton.configure(command=lambda comfirmFrame=comfirmFrame, parser=parser: self.submitOrderCallBack(comfirmFrame, parser))
                     comfirmFrame.show()
                 else:
