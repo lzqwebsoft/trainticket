@@ -2,7 +2,7 @@
 import json
 import configparser
 import html.parser
-import urllib, urllib.request,urllib.parse
+import urllib, urllib.request, urllib.parse
 
 # 读取URL获得验证码的路径HTML解析类
 class LoginRandCodeParser(html.parser.HTMLParser):
@@ -71,20 +71,21 @@ def getRandImageUrlAndCodeRand(ht):
     return result
 
 
-def login(ht, username, password, randCode, rand):
-    # 判断用户输入的验证码是否正确
-    post_datas = {
-        'randCode': randCode, # 输入验证码
-        'rand': rand            # 验证令牌
-    }
-
-    # 检证输入验证码的合法性
-    json_str = ht.post(url="https://kyfw.12306.cn/otn/passcodeNew/checkRandCodeAnsyn", params=post_datas)
-    json_data = json.loads(json_str)
-    if (json_data["data"] == 'N'):
-        print(json_str)
-        print('输入的验证码有误.')
+def login(ht, username, password, randCode, rand, check_rand_status='Y'):
+    # 判断用户是否进行验证码的检查操作，如果check_rand_status为N则直接跳过进行登录
+    if check_rand_status == 'Y':
+        # 判断用户输入的验证码是否正确
+        post_datas = {
+            'randCode': randCode, # 输入验证码
+            'rand': rand            # 验证令牌
+        }
+        # 检证输入验证码的合法性
+        json_str = ht.post(url="https://kyfw.12306.cn/otn/passcodeNew/checkRandCodeAnsyn", params=post_datas)
+        json_data = json.loads(json_str)
     else:
+        json_data = {'data': 'Y'}
+
+    if (json_data["data"] == 'Y'):
         post_data = {
             "loginUserDTO.user_name": username,
             "userDTO.password": password,
@@ -116,8 +117,11 @@ def login(ht, username, password, randCode, rand):
                 print("登录失败, 详情查看登录返回的login_result.html页面")
         else:
             messages = json_data.get('messages', '') if type(json_data) == dict else json_str
-            if not messages: messages='当前网络繁忙不可登录访问!'
+            if not messages: messages = '当前网络繁忙不可登录访问!'
             print(messages)
+    else:
+        print(json_str)
+        print('输入的验证码有误.')
 
     return False
 

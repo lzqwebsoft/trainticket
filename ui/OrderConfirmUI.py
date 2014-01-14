@@ -4,6 +4,7 @@ import io
 import random
 import socket
 import urllib.error
+
 try:
     # Python2
     from Tkinter import *
@@ -100,10 +101,13 @@ class ConfirmPassengerFrame:
         self.ticket_types = {}
         self.card_types = {}
         # 乘客输入框数据
-        if 'limitBuySeatTicketDTO' in passenger_params and 'seat_type_codes' in passenger_params['limitBuySeatTicketDTO']:
-            self.seats_types = {seat_type_codes['id']:seat_type_codes['value'] for seat_type_codes in passenger_params['limitBuySeatTicketDTO']['seat_type_codes']}
-            self.ticket_types = {ticket_type_codes['id']:ticket_type_codes['value'] for ticket_type_codes in passenger_params['limitBuySeatTicketDTO']['ticket_type_codes']}
-            self.card_types = {cardTypes['id']:cardTypes['value'] for cardTypes in  passenger_params['cardTypes']}
+        if 'limitBuySeatTicketDTO' in passenger_params and 'seat_type_codes' in passenger_params[
+            'limitBuySeatTicketDTO']:
+            self.seats_types = {seat_type_codes['id']: seat_type_codes['value'] for seat_type_codes in
+                                passenger_params['limitBuySeatTicketDTO']['seat_type_codes']}
+            self.ticket_types = {ticket_type_codes['id']: ticket_type_codes['value'] for ticket_type_codes in
+                                 passenger_params['limitBuySeatTicketDTO']['ticket_type_codes']}
+            self.card_types = {cardTypes['id']: cardTypes['value'] for cardTypes in passenger_params['cardTypes']}
 
         self.customerTable = Frame(customerPanel)
         self.customerTable.pack(fill=X)
@@ -442,7 +446,7 @@ class CustomerInfoContent(Frame):
             if text == seat_type:
                 params['passenger_%d_seat' % self.index] = value
                 break
-        # 得到选中的票类
+            # 得到选中的票类
         params['passenger_%d_ticket' % self.index] = ''
         ticket_type = self.customerTypeListBox.get()
         ticket_type = ticket_type.strip()
@@ -450,7 +454,7 @@ class CustomerInfoContent(Frame):
             if ticket_type == text:
                 params['passenger_%d_ticket' % self.index] = value
                 break
-        # 得到设置的用户名
+            # 得到设置的用户名
         params['passenger_%d_name' % self.index] = self.getCustomerName()
         # 得到证件类型
         params['passenger_%d_cardtype' % self.index] = ''
@@ -460,7 +464,7 @@ class CustomerInfoContent(Frame):
             if card_type == text:
                 params['passenger_%d_cardtype' % self.index] = value
                 break
-        # 得到证件号
+            # 得到证件号
         params['passenger_%d_cardno' % self.index] = self.cardNo.get()
         # 手机号
         params['passenger_%d_mobileno' % self.index] = self.cellphone.get()
@@ -494,7 +498,8 @@ class CustomerInfoContent(Frame):
 
 # 订单提交对话框
 class ConfirmOrderDialog(Toplevel):
-    def __init__(self, parent, prompt_text='', train_info=None, passenger_info=None, okFunc=None, orderParams=None):
+    def __init__(self, parent, prompt_text='', train_info=None, passenger_info=None, okFunc=None, orderParams=None,
+                 ht=None):
         Toplevel.__init__(self, parent)
         self.transient(parent)
 
@@ -506,6 +511,7 @@ class ConfirmOrderDialog(Toplevel):
         self.passenger_info = passenger_info
         self.okFunc = okFunc
         self.orderParams = orderParams
+        self.httpAccessObj = ht
 
         body = Frame(self)
         self.initial_focus = self.body(body)
@@ -622,7 +628,7 @@ class ConfirmOrderDialog(Toplevel):
             return
         self.withdraw()
         self.update_idletasks()
-        self.okFunc(self.orderParams)
+        self.okFunc(self.orderParams, self.httpAccessObj)
         self.cancel()
 
     def cancel(self, event=None):

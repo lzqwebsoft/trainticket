@@ -52,6 +52,19 @@ class HttpTester:
                 return ';'.join(cookies)
         return ''
 
+    def getCookiejar(self):
+        handers = self.__opener.handlers
+        for hander in handers:
+            if type(hander) == urllib.request.HTTPCookieProcessor:
+                cookiejar = hander.cookiejar
+                return cookiejar
+        return http.cookiejar.CookieJar()
+
+    def setCookiejar(self, cookiejar=None):
+        if not cookiejar:
+            cookiejar = http.cookiejar.CookieJar()
+        self.__opener.add_handler(urllib.request.HTTPCookieProcessor(cookiejar))
+
     def addProxy(self, host, type='http'):
         '''设置代理'''
         proxy = urllib.request.ProxyHandler({type: host})
