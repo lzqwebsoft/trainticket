@@ -149,8 +149,18 @@ def getPerformanceInfo():
     config = configparser.ConfigParser()
     config.read("config.ini")
     try:
-        stationCodes = dict(config.items("PerformanceInfo"))
-        return stationCodes
+        performanceInfo = dict(config.items("PerformanceInfo"))
+        return performanceInfo
     except configparser.NoSectionError:
         print("系统性能配置装载失败!")
+    return {}
+
+def getGoAgentHost():
+    config = configparser.ConfigParser()
+    config.read("config.ini")
+    try:
+        host = dict(config.items("GoAgentHost"))
+        return host
+    except configparser.NoSectionError:
+        print("未设定代理服务器!")
     return {}

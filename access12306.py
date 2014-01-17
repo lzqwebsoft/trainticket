@@ -3,13 +3,20 @@ import time
 import tkinter
 import copy
 import ui.LoginUI, ui.OrderConfirmUI, ui.QueryTrainUI
-from core import login,order,query
+from core import login, order, query
 from common.httpaccess import HttpTester
 
 
 class AccessTrainOrderNetWork:
     def __init__(self):
+        # 装载代理服务器地址
+        proxy_info = login.getGoAgentHost()
+        self.host_address = proxy_info.get('host', '')
+        self.host_type = proxy_info.get('type', '')
+
         self.ht = HttpTester()
+        if self.host_address and self.host_type:
+            self.ht.addProxy(self.host_address, self.host_type)
         self.ht.addCookiejar()
 
         # 获取用户帐号信息
@@ -53,16 +60,17 @@ class AccessTrainOrderNetWork:
             randCode = self.randImage.randCode.get()
             if randCode:
                 loginResult = login.login(ht=self.ht, username=self.userInfo[0], password=self.userInfo[1],
-                                          randCode=randCode, rand=self.login_rand, check_rand_status=self.check_rand_status)
+                                          randCode=randCode, rand=self.login_rand,
+                                          check_rand_status=self.check_rand_status)
                 if loginResult:
                     # 登录成功，关闭登框
                     self.randImage.quit()
                     # 得到性能配置中设定是否更新车站编码属性，默认是Y，表更新
                     update_stations = self.performanceInfo.get('update_stations', 'Y')
-                    if update_stations and update_stations=="Y":
+                    if update_stations and update_stations == "Y":
                         # 更新城市编码表
                         query.updateCityCode(self.ht)
-                    # 装载列车站点编码
+                        # 装载列车站点编码
                     self.allStationCodes = query.getAllStationCodes()
                     # 获取默认的列车查询信息
                     defaultQueryParams = query.getDefaultQueryParams()
@@ -126,7 +134,7 @@ class AccessTrainOrderNetWork:
             query_interval = self.performanceInfo.get('query_interval', 5)
             self.queryFrame.selectButton.configure(state=tkinter.DISABLED, text='自动查询中')
             print('自动查询开启，%s秒后进行下一波查询.' % query_interval)
-            self.queryFrame.root.after(int(query_interval)*1000, self.queryTrainsCallBack)
+            self.queryFrame.root.after(int(query_interval) * 1000, self.queryTrainsCallBack)
         else:
             self.queryFrame.selectButton.configure(state=tkinter.NORMAL, text='查询')
 
@@ -134,9 +142,11 @@ class AccessTrainOrderNetWork:
     def orderTrainsCallBack(self, selectStr='', row=0):
         if selectStr:
             # 对Http请求工具对象进行一次深度拷贝
-            ht = copy.deepcopy(self.ht)
-            # ht = HttpTester()
-            # ht.setCookiejar(self.ht.getCookiejar())
+            # ht = copy.deepcopy(self.ht)
+            ht = HttpTester()
+            if self.host_address and self.host_type:
+                self.ht.addProxy(self.host_address, self.host_type)
+            ht.setCookiejar(self.ht.getCookiejar())
 
             # 提交预定，获取初始化乘客确认页面内容
             submitResult = order.submitOrderRequest(ht, selectStr, queryParams=self.currentSelectedParams)
@@ -155,11 +165,14 @@ class AccessTrainOrderNetWork:
                     # self.queryFrame.quit()      # 注销查询窗体
                     # self.queryFrame = None
                     comfirmFrame = ui.OrderConfirmUI.ConfirmPassengerFrame(contacts=self.contacts,
-                                                                             rand_image_url=img_rand_code_url,
-                                                                             train_info=trainInfo,
-                                                                             passenger_params=passenger_params)
-                    comfirmFrame.backButton.configure(command=lambda comfirmFrame=comfirmFrame: self.backToTrainQueryCallBack(comfirmFrame))
-                    comfirmFrame.submitButton.configure(command=lambda comfirmFrame=comfirmFrame, httpAccessObj=ht, parser=parser: self.submitOrderCallBack(comfirmFrame, parser, httpAccessObj))
+                                                                           rand_image_url=img_rand_code_url,
+                                                                           train_info=trainInfo,
+                                                                           passenger_params=passenger_params)
+                    comfirmFrame.backButton.configure(
+                        command=lambda comfirmFrame=comfirmFrame: self.backToTrainQueryCallBack(comfirmFrame))
+                    comfirmFrame.submitButton.configure(command=lambda comfirmFrame=comfirmFrame, httpAccessObj=ht,
+                                                                       parser=parser: self.submitOrderCallBack(
+                        comfirmFrame, parser, httpAccessObj))
                     comfirmFrame.show()
                 else:
                     print('解析车票预订画面失败,详情查看当前目录下的submitResult.html文件.')
@@ -218,12 +231,13 @@ class AccessTrainOrderNetWork:
         if self.check_rand_status == 'Y':
             # 检查用户输入验证码的合法性
             checkResult = order.checkOrderImgCode(httpAccessObj, rand=image_code_rand, img_code=image_code,
-                                              token=parser.globalRepeatSubmitToken)
+                                                  token=parser.globalRepeatSubmitToken)
         else:
             checkResult = True
         if checkResult:
             # 检证用户提交的乘客信息的合法性
-            checkResult = order.checkOrderInfo(httpAccessObj, randCode=image_code, passengerTicketStr=passengerTicketStr,
+            checkResult = order.checkOrderInfo(httpAccessObj, randCode=image_code,
+                                               passengerTicketStr=passengerTicketStr,
                                                oldPassengersStr=oldPassengersStr, tour_flag='dc',
                                                token=parser.globalRepeatSubmitToken)
             if checkResult:
@@ -255,15 +269,15 @@ class AccessTrainOrderNetWork:
                 ]
                 queue_note = order.getQueueCount(httpAccessObj, queueCounParams, seat_type)
                 ui.OrderConfirmUI.ConfirmOrderDialog(comfirmFrame.root, queue_note, parser.get_train_info(),
-                                                  comfirmFrame.getPassengerInfo(), self.comfirmOrderSubmitCallBack,
-                                                  orderParams, httpAccessObj)
+                                                     comfirmFrame.getPassengerInfo(), self.comfirmOrderSubmitCallBack,
+                                                     orderParams, httpAccessObj)
 
     # 用户点击提交订单确认对话框的确认按钮时回调
     def comfirmOrderSubmitCallBack(self, orderParams=None, httpAccessObj=None):
         if not orderParams or not httpAccessObj:
             print('预定参数不能为空')
             return
-        # 检查单程预定允许排队
+            # 检查单程预定允许排队
         checkResult = order.checkQueueOrder(httpAccessObj, 'dc', orderParams)
         if checkResult:
             # 开始排队
