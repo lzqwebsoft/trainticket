@@ -145,7 +145,7 @@ class AccessTrainOrderNetWork:
             # ht = copy.deepcopy(self.ht)
             ht = HttpTester()
             if self.host_address and self.host_type:
-                self.ht.addProxy(self.host_address, self.host_type)
+                ht.addProxy(self.host_address, self.host_type)
             ht.setCookiejar(self.ht.getCookiejar())
 
             # 提交预定，获取初始化乘客确认页面内容
